@@ -1,6 +1,6 @@
 import logging
 import random
-from typing import Optional
+from typing import Optional, List
 
 import gym
 import torch
@@ -36,7 +36,7 @@ class DQNAgent:
         self.memory = None
         self.eps = None
         self.discount_factor = None
-        self.steps_done = 0
+        self.steps_done_total = 0
         self.reset()
 
     def reset(self) -> None:
@@ -51,9 +51,9 @@ class DQNAgent:
         self.memory = None
         self.eps = None
         self.discount_factor = None
-        self.steps_done = 0
+        self.steps_done_total = 0
 
-    def train(self, env: gym.Env, train_param: TrainParameters) -> list:
+    def train(self, env: gym.Env, train_param: TrainParameters) -> List[List[float]]:
         """
         Train agent using environment env and training paramaters train_param.
 
@@ -76,32 +76,37 @@ class DQNAgent:
             train_param (TrainParameters): training parameters.
 
         Returns:
-            list: list of values for every episode. The content of each item in this list is defined by train_param.episode_results_func.
+            rewards: all the rewards collected during training.
         """
         self.train_param = train_param
         self.optimizer = train_param.optimizer(self.policy_net.parameters(),
                                                lr=self.train_param.learning_rate,
                                                amsgrad=True)
         self.memory = DataBuffer(train_param.buffer_size)
-        self.steps_done = 0
-        outcomes = []
+        self.steps_done_total = 0
 
+        rewards = []
         for i_episode in range(train_param.n_episodes):
             state, _ = env.reset()
             state = torch.tensor(state, dtype=torch.float32, device=self.param.device).unsqueeze(0)
-            step_results = []
+            episode_data = DataBuffer(self.train_param.max_steps_per_episode)
+            episode_rewards = []
             for step_counter in range(self.train_param.max_steps_per_episode):
-                self.eps = self.train_param.eps_update_func(self.steps_done)
-                logger.debug(f"N steps done {self.steps_done}, epsilon {self.eps}")
-                self.discount_factor = self.train_param.discount_factor_update_func(self.steps_done)
-                logger.debug(f"N steps done {self.steps_done}, discount factor {self.discount_factor}")
+                self.eps = self.train_param.eps_scheduler.apply(i_episode,
+                                                                step_counter,
+                                                                self.steps_done_total)
+                logger.debug(f"N steps done {self.steps_done_total}, epsilon {self.eps}")
+                self.discount_factor = self.train_param.discount_scheduler.apply(i_episode,
+                                                                                 step_counter,
+                                                                                 self.steps_done_total)
+                logger.debug(f"N steps done {self.steps_done_total}, discount factor {self.discount_factor}")
 
                 action = self._select_action(state, env)
-                self.steps_done += 1
+                self.steps_done_total += 1
                 step_result = env.step(action.item())
                 logger.debug(f"Episode {i_episode}, step count {step_counter}, {step_result}")
-                step_results.append(step_result)
                 observation, reward, terminated, truncated, _ = step_result
+                episode_rewards.append(reward)
                 reward = torch.tensor([reward], device=self.param.device)
 
                 done = terminated or truncated
@@ -110,6 +115,7 @@ class DQNAgent:
                 else:
                     next_state = torch.tensor(observation, dtype=torch.float32, device=self.param.device).unsqueeze(0)
 
+                episode_data.push(state, action, next_state, reward)
                 self.memory.push(state, action, next_state, reward)
                 state = next_state
                 loss = self._update_policy_model()
@@ -127,11 +133,12 @@ class DQNAgent:
                     logger.info(
                         f"The episode {i_episode} was ended because max number of steps {step_counter + 1} was reached")
 
-            outcomes.append(self.train_param.episode_results_func(step_results))
-            if self.train_param.vis_cb:
-                self.train_param.vis_cb(outcomes)
+            rewards.append(episode_rewards)
+            if self.train_param.progress_cb is not None:
+                self.train_param.progress_cb.push(episode_data)
+                self.train_param.progress_cb.apply()
 
-        return outcomes
+        return rewards
 
     def run(self, env: gym.Env, max_steps: int) -> list:
         """

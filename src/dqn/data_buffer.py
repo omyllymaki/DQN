@@ -13,6 +13,12 @@ class DataBuffer(object):
     def push(self, *args) -> None:
         self.memory.append(Transition(*args))
 
+    def get_all(self) -> List[Transition]:
+        return list(self.memory)
+
+    def get_all_flat(self) -> Transition:
+        return Transition(*zip(*self.memory))
+
     def sample(self, batch_size: int) -> List[Transition]:
         return random.sample(self.memory, batch_size)
 
@@ -23,5 +29,17 @@ class DataBuffer(object):
         sample = self.sample(batch_size)
         return Transition(*zip(*sample))
 
+    def __str__(self):
+        first_element = self.memory[0]
+        last_element = self.memory[-1]
+        s = f"Data buffer size {len(self)}, values: \n {first_element} \n ... \n {last_element}"
+        return s
+
+    def __repr__(self):
+        return self.__str__()
+
     def __len__(self) -> int:
         return len(self.memory)
+
+    def __getitem__(self, index):
+        return self.memory[index]

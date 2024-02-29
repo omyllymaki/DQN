@@ -15,7 +15,6 @@ from src.dqn.parameters import TrainParameters
 @dataclass
 class OptimizationResult:
     param: dict
-    results: list
     score: float
 
 
@@ -31,9 +30,6 @@ class AgentOptimizer:
                  n_iter: int = 100,
                  score_func: Optional[Callable] = None) -> List[OptimizationResult]:
 
-        if score_func is None:
-            score_func = lambda results: np.mean(results[-50:])
-
         output = []
         for k in range(n_iter):
             self.agent.reset()
@@ -48,15 +44,15 @@ class AgentOptimizer:
             pprint(selected_values)
 
             t1 = time.time()
-            results = self.agent.train(env, train_param)
+            rewards = self.agent.train(env, train_param)
             t2 = time.time()
             duration = t2 - t1
-            n_step_total = self.agent.steps_done
+            n_step_total = self.agent.steps_done_total
             print(f"Training took {duration} s for {n_step_total} steps, {n_step_total / duration:0.0f} steps/s")
 
-            score = score_func(results)
+            score = score_func(rewards)
             print(f"Iteration {k}, score {score}")
 
-            output.append(OptimizationResult(param=selected_values, results=results, score=score))
+            output.append(OptimizationResult(param=selected_values, score=score))
 
         return output
