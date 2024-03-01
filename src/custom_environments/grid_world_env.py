@@ -11,18 +11,20 @@ class GridWorldEnv(gym.Env):
     def __init__(self,
                  size=10,
                  n_obstacles=3,
-                 fixed_map=True,
                  fixed_agent_start_point: Optional[Tuple[int, int]] = None,
                  fixed_target_point: Optional[Tuple[int, int]] = None,
-                 target_reward=10, obstacle_reward=-10, default_reward=-0.05):
+                 fixed_obstacles: Optional[tuple] = None,
+                 target_reward=10, obstacle_reward=-10, default_reward=-0.05,
+                 seed=42):
         self.size = size
         self.n_obstacles = n_obstacles
-        self.fixed_map = fixed_map
         self.fixed_agent_start_point = fixed_agent_start_point
         self.fixed_target_point = fixed_target_point
+        self.fixed_obstacles = fixed_obstacles
         self.target_reward = target_reward
         self.obstacle_reward = obstacle_reward
         self.default_reward = default_reward
+        self.seed = seed
 
         # Observations are dictionaries with the agent's and the target's location.
         # Each location is encoded as an element of {0, ..., `size`}^2, i.e. MultiDiscrete([size, size]).
@@ -37,12 +39,6 @@ class GridWorldEnv(gym.Env):
 
         # We have 4 actions, corresponding to "right", "up", "left", "down"
         self.action_space = spaces.Discrete(4)
-
-        """
-        The following dictionary maps abstract actions from `self.action_space` to 
-        the direction we will walk in if that action is taken.
-        I.e. 0 corresponds to "right", 1 to "up" etc.
-        """
         self._action_to_direction = {
             0: np.array([1, 0]),
             1: np.array([0, 1]),
@@ -54,13 +50,15 @@ class GridWorldEnv(gym.Env):
         self._get_world()
 
     def reset(self, seed=None, options=None):
+
         # We need the following line to seed self.np_random
-        super().reset(seed=seed)
+        if self.seed is not None:
+            super().reset(seed=self.seed)
+        else:
+            super().reset(seed=seed)
 
         self._get_init_agent_location()
-
-        if not self.fixed_map:
-            self._get_world()
+        self._get_world()
 
         observation = self._get_obs()
         info = self._get_info()
@@ -91,7 +89,7 @@ class GridWorldEnv(gym.Env):
         return observation, reward, terminated, False, info
 
     def _random_loc(self):
-        return self.np_random.integers(0, self.size, size=2, dtype=int)
+        return np.random.randint(0, self.size, size=2)
 
     def _get_init_agent_location(self):
         if self.fixed_agent_start_point is not None:
@@ -108,17 +106,19 @@ class GridWorldEnv(gym.Env):
                 if np.array_equal(self._target_location, self._agent_location):
                     continue
                 break
-
-        self._obstacle_locations = []
-        for _ in range(self.n_obstacles):
-            while True:
-                obstacle_location_candidate = self._random_loc()
-                if np.array_equal(obstacle_location_candidate, self._agent_location):
-                    continue
-                if np.array_equal(obstacle_location_candidate, self._target_location):
-                    continue
-                self._obstacle_locations.append(obstacle_location_candidate)
-                break
+        if self.fixed_obstacles:
+            self._obstacle_locations = [np.array(o) for o in self.fixed_obstacles]
+        else:
+            self._obstacle_locations = []
+            for _ in range(self.n_obstacles):
+                while True:
+                    obstacle_location_candidate = self._random_loc()
+                    if np.array_equal(obstacle_location_candidate, self._agent_location):
+                        continue
+                    if np.array_equal(obstacle_location_candidate, self._target_location):
+                        continue
+                    self._obstacle_locations.append(obstacle_location_candidate)
+                    break
 
     def _get_obs(self):
         obs = self._agent_location.tolist() + self._target_location.tolist()

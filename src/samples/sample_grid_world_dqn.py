@@ -104,11 +104,14 @@ class ProgressCallbackGridWorld(ProgressCallback):
 
 
 def main():
+    fixed_obstacles = (
+    (11, 24), (13, 2), (7, 11), (4, 8), (24, 5), (19, 20), (5, 15), (13, 24), (8, 17), (28, 7), (0, 22), (4, 1),
+    (17, 2), (19, 21), (4, 0))
     env = GridWorldEnv(size=GRID_SIZE,
                        n_obstacles=15,
-                       fixed_map=True,
-                       fixed_agent_start_point=(0, 0),
-                       fixed_target_point=(15, 15))
+                       # fixed_agent_start_point=(0, 0),
+                       fixed_target_point=(15, 15),
+                       fixed_obstacles=fixed_obstacles)
 
     n_actions = env.action_space.n
     state, _ = env.reset()
@@ -123,12 +126,17 @@ def main():
     train_param = TrainParameters()
     train_param.discount_scheduler = ConstValueScheduler(0.9)
     train_param.n_episodes = 1000
-    train_param.eps_scheduler = LinearScheduler(slope=-1 / 700, min_value=0)
+    train_param.eps_scheduler = ConstValueScheduler(0)
+    train_param.dropout_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
     train_param.max_steps_per_episode = 200
     train_param.target_network_update_rate = 0.01
     train_param.progress_cb = ProgressCallbackVisLatestRewards(50)
     train_param.progress_cb = ProgressCallbackVisSumReward(50)
     train_param.progress_cb = ProgressCallbackGridWorld(vis_period=10, n_episodes_to_show=10)
+    # train_param.complementary_actions = [(0, 2), (1, 3)]
+
+    train_param.eps_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
+    train_param.dropout_scheduler = ConstValueScheduler(0)
 
     agent = DQNAgent(param)
 
