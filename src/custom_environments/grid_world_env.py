@@ -1,13 +1,28 @@
+from typing import Optional, Tuple
+
 import gym
-from gym import spaces
 import numpy as np
+from gym import spaces
 
 
 class GridWorldEnv(gym.Env):
+    # TODO: add randomness to actions
 
-    def __init__(self, size=5, n_obstacles=3):
-        self.size = size  # The size of the square grid
+    def __init__(self,
+                 size=10,
+                 n_obstacles=3,
+                 fixed_map=True,
+                 fixed_agent_start_point: Optional[Tuple[int, int]] = None,
+                 fixed_target_point: Optional[Tuple[int, int]] = None,
+                 target_reward=10, obstacle_reward=-10, default_reward=-0.05):
+        self.size = size
         self.n_obstacles = n_obstacles
+        self.fixed_map = fixed_map
+        self.fixed_agent_start_point = fixed_agent_start_point
+        self.fixed_target_point = fixed_target_point
+        self.target_reward = target_reward
+        self.obstacle_reward = obstacle_reward
+        self.default_reward = default_reward
 
         # Observations are dictionaries with the agent's and the target's location.
         # Each location is encoded as an element of {0, ..., `size`}^2, i.e. MultiDiscrete([size, size]).
@@ -35,6 +50,76 @@ class GridWorldEnv(gym.Env):
             3: np.array([0, -1]),
         }
 
+        self._get_init_agent_location()
+        self._get_world()
+
+    def reset(self, seed=None, options=None):
+        # We need the following line to seed self.np_random
+        super().reset(seed=seed)
+
+        self._get_init_agent_location()
+
+        if not self.fixed_map:
+            self._get_world()
+
+        observation = self._get_obs()
+        info = self._get_info()
+
+        return observation, info
+
+    def step(self, action):
+        direction = self._action_to_direction[action]
+
+        # We use `np.clip` to make sure we don't leave the grid
+        self._agent_location = np.clip(
+            self._agent_location + direction, 0, self.size - 1
+        )
+
+        terminated = False
+        reward = self.default_reward
+        if np.array_equal(self._agent_location, self._target_location):  # Agent reached the target
+            terminated = True
+            reward = self.target_reward
+        for obstacle_location in self._obstacle_locations:
+            if np.array_equal(self._agent_location, obstacle_location):  # Agent hits to obstacle
+                terminated = True
+                reward = self.obstacle_reward
+
+        observation = self._get_obs()
+        info = self._get_info()
+
+        return observation, reward, terminated, False, info
+
+    def _random_loc(self):
+        return self.np_random.integers(0, self.size, size=2, dtype=int)
+
+    def _get_init_agent_location(self):
+        if self.fixed_agent_start_point is not None:
+            self._agent_location = np.array(self.fixed_agent_start_point)
+        else:
+            self._agent_location = self._random_loc()
+
+    def _get_world(self):
+        if self.fixed_target_point:
+            self._target_location = np.array(self.fixed_target_point)
+        else:
+            while True:
+                self._target_location = self._random_loc()
+                if np.array_equal(self._target_location, self._agent_location):
+                    continue
+                break
+
+        self._obstacle_locations = []
+        for _ in range(self.n_obstacles):
+            while True:
+                obstacle_location_candidate = self._random_loc()
+                if np.array_equal(obstacle_location_candidate, self._agent_location):
+                    continue
+                if np.array_equal(obstacle_location_candidate, self._target_location):
+                    continue
+                self._obstacle_locations.append(obstacle_location_candidate)
+                break
+
     def _get_obs(self):
         obs = self._agent_location.tolist() + self._target_location.tolist()
         for obstacle_location in self._obstacle_locations:
@@ -43,56 +128,3 @@ class GridWorldEnv(gym.Env):
 
     def _get_info(self):
         return {"distance": np.linalg.norm(self._agent_location - self._target_location, ord=1)}
-
-    def reset(self, seed=None, options=None):
-        # We need the following line to seed self.np_random
-        super().reset(seed=seed)
-
-        # Choose the agent's location uniformly at random
-        self._agent_location = self.np_random.integers(0, self.size, size=2, dtype=int)
-
-        # We will sample the target's location randomly until it does not coincide with the agent's location
-        self._target_location = self._agent_location
-        while np.array_equal(self._target_location, self._agent_location):
-            self._target_location = self.np_random.integers(
-                0, self.size, size=2, dtype=int
-            )
-
-        self._obstacle_locations = []
-        for _ in range(self.n_obstacles):
-            while True:
-                obstacle_location_candidate = self.np_random.integers(0, self.size, size=2, dtype=int)
-                if np.array_equal(obstacle_location_candidate, self._agent_location):
-                    continue
-                if np.array_equal(obstacle_location_candidate, self._target_location):
-                    continue
-                self._obstacle_locations.append(obstacle_location_candidate)
-                break
-
-        observation = self._get_obs()
-        info = self._get_info()
-
-        return observation, info
-
-    def step(self, action):
-        # Map the action (element of {0,1,2,3}) to the direction we walk in
-        direction = self._action_to_direction[action]
-        # We use `np.clip` to make sure we don't leave the grid
-        self._agent_location = np.clip(
-            self._agent_location + direction, 0, self.size - 1
-        )
-
-        terminated = False
-        reward = 0
-        if np.array_equal(self._agent_location, self._target_location):  # Agent reached the target
-            terminated = True
-            reward = 1
-        for obstacle_location in self._obstacle_locations:
-            if np.array_equal(self._agent_location, obstacle_location):  # Agent hits to obstacle
-                terminated = True
-                reward = -1
-
-        observation = self._get_obs()
-        info = self._get_info()
-
-        return observation, reward, terminated, False, info

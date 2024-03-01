@@ -9,58 +9,106 @@ from src.custom_environments.grid_world_env import GridWorldEnv
 from src.dqn.data_buffer import DataBuffer
 from src.dqn.dqn_agent import DQNAgent
 from src.dqn.parameters import Parameters, TrainParameters
-from src.dqn.progress_callback import ProgressCallback, ProgressCallbackVisLatestRewards
-from src.dqn.scheduler import ExpDecayScheduler, ConstValueScheduler
+from src.dqn.progress_callback import ProgressCallback, ProgressCallbackVisLatestRewards, ProgressCallbackVisSumReward
+from src.dqn.scheduler import ExpDecayScheduler, ConstValueScheduler, LinearScheduler
+from src.dqn.utils import running_mean
 
 logging.basicConfig(level=logging.INFO)
 
+GRID_SIZE = 30
 
-class ProgressCallbackVisualizeSearch(ProgressCallback):
 
-    def __init__(self, vis_period=10) -> None:
+class ProgressCallbackGridWorld(ProgressCallback):
+
+    def __init__(self, vis_period=50, n_episodes_to_show=10) -> None:
         super().__init__()
-        self.data = None
+        self.data = []
         self.vis_period = vis_period
-        self.push_counter = 0
+        self.n_episodes_to_show = n_episodes_to_show
 
     def push(self, data: DataBuffer) -> None:
-        self.data = data.get_all()
-        self.push_counter += 1
+        self.data.append(data.get_all())
 
     def apply(self) -> None:
-        if self.push_counter % self.vis_period != 0:
+        if len(self.data) % self.vis_period != 0:
             return
 
-        xs, ys = [], []
-        for step_count, item in enumerate(self.data):
+        plt.subplot(1, 2, 1)
+        plt.cla()
+        plt.subplot(2, 2, 2)
+        plt.cla()
+        plt.subplot(2, 2, 4)
+        plt.cla()
 
-            state = item.state.view(-1).cpu().numpy()
-            x = state[0]
-            y = state[1]
+        last_episodes = self.data[-self.n_episodes_to_show:]
+        n_found_target = 0
+        n_hit_obstacle = 0
+        n_terminated = 0
+        for data in last_episodes:
+
+            xs, ys = [], []
+            for step_count, item in enumerate(data):
+                state = item.state.view(-1).cpu().numpy()
+                x = state[0]
+                y = state[1]
+                xs.append(x)
+                ys.append(y)
+
+            last_item = data[-1]
+            state = last_item.state.view(-1).cpu().numpy()
             x_target = state[2]
             y_target = state[3]
             objects = state[4:]
-            reward = item.reward.item()
 
-            xs.append(x)
-            ys.append(y)
+            last_reward = last_item.reward.item()
+            if last_reward > 0:
+                n_found_target += 1
+            elif last_reward < -1:
+                n_hit_obstacle += 1
+            else:
+                n_terminated += 1
 
-            plt.cla()
+            plt.subplot(1, 2, 1)
             for i in range(0, len(objects), 2):
                 xo = objects[i]
                 yo = objects[i + 1]
                 plt.plot(xo, yo, "ko")
-
-            plt.plot(xs, ys, "b-")
-            plt.plot(x, y, "bo")
+            plt.plot(xs, ys, "-")
             plt.plot(x_target, y_target, "ro")
-            plt.title(f"Episode {self.push_counter}, step {step_count}, reward {reward}")
-            plt.pause(0.001)
-        plt.pause(0.5)
+
+            plt.title(f"Found target {n_found_target}, hit obstacle {n_hit_obstacle}, terminated {n_terminated}")
+
+        reward_sums = []
+        durations = []
+        for data in self.data:
+            rewards = [i.reward.item() for i in data]
+            reward_sums.append(np.sum(rewards))
+            durations.append(len(data))
+
+        plt.xlim(-1, GRID_SIZE + 1)
+        plt.ylim(-1, GRID_SIZE + 1)
+
+        plt.subplot(2, 2, 2)
+        plt.plot(reward_sums, color="b")
+        plt.plot(running_mean(reward_sums, 50), linewidth=2, color="r")
+        plt.title("Cumulative reward")
+        plt.xlabel("Episode")
+
+        plt.subplot(2, 2, 4)
+        plt.plot(durations, color="b")
+        plt.plot(running_mean(durations, 50), linewidth=2, color="r")
+        plt.title("Duration")
+        plt.xlabel("Episode")
+
+        plt.pause(0.1)
 
 
 def main():
-    env = GridWorldEnv(size=20, n_obstacles=0)
+    env = GridWorldEnv(size=GRID_SIZE,
+                       n_obstacles=15,
+                       fixed_map=True,
+                       fixed_agent_start_point=(0, 0),
+                       fixed_target_point=(15, 15))
 
     n_actions = env.action_space.n
     state, _ = env.reset()
@@ -73,19 +121,14 @@ def main():
     print(f"Using {param.device} as device")
 
     train_param = TrainParameters()
-    train_param.eps_scheduler = ExpDecayScheduler(start=0.9, end=0.05, decay=1e4)
     train_param.discount_scheduler = ConstValueScheduler(0.9)
     train_param.n_episodes = 1000
+    train_param.eps_scheduler = LinearScheduler(slope=-1 / 700, min_value=0)
     train_param.max_steps_per_episode = 200
-    train_param.progress_cb = ProgressCallbackVisLatestRewards()
-    # train_param.progress_cb = ProgressCallbackVisualizeSearch()
-
-    xs = np.arange(1, train_param.n_episodes * train_param.max_steps_per_episode)
-    eps = [train_param.eps_scheduler.apply(0, 0, x) for x in xs]
-    plt.plot(xs, eps)
-    plt.ylabel("Epsilon")
-    plt.xlabel("Steps")
-    plt.show()
+    train_param.target_network_update_rate = 0.01
+    train_param.progress_cb = ProgressCallbackVisLatestRewards(50)
+    train_param.progress_cb = ProgressCallbackVisSumReward(50)
+    train_param.progress_cb = ProgressCallbackGridWorld(vis_period=10, n_episodes_to_show=10)
 
     agent = DQNAgent(param)
 
@@ -96,34 +139,38 @@ def main():
     n_step_total = agent.steps_done_total
     print(f"Training took {duration} s for {n_step_total} steps, {n_step_total / duration:0.0f} steps/s")
 
-    results = agent.run(env, 200)
+    n_test_runs = 30
+    for k in range(n_test_runs):
+        results = agent.run(env, 50)
 
-    plt.figure()
-    xs, ys = [], []
-    for step_count, item in enumerate(results):
-        observation, reward, terminated, truncated, _ = item
+        plt.figure(2)
+        xs, ys = [], []
+        for step_count, item in enumerate(results):
+            observation, reward, terminated, truncated, _ = item
 
-        x = observation[0]
-        y = observation[1]
-        xs.append(x)
-        ys.append(y)
-        x_target = observation[2]
-        y_target = observation[3]
-        objects = observation[4:]
+            x = observation[0]
+            y = observation[1]
+            xs.append(x)
+            ys.append(y)
+            x_target = observation[2]
+            y_target = observation[3]
+            objects = observation[4:]
 
-        plt.cla()
-        for i in range(0, len(objects), 2):
-            xo = objects[i]
-            yo = objects[i + 1]
-            plt.plot(xo, yo, "ko")
+            plt.cla()
+            for i in range(0, len(objects), 2):
+                xo = objects[i]
+                yo = objects[i + 1]
+                plt.plot(xo, yo, "ko")
 
-        plt.plot(xs, ys, "b-")
-        plt.plot(x, y, "bo")
-        plt.plot(x_target, y_target, "ro")
-        plt.title(f"Round {step_count}")
-        plt.pause(0.1)
+            plt.plot(xs, ys, "b-")
+            plt.plot(x, y, "bo")
+            plt.plot(x_target, y_target, "ro")
+            plt.title(f"Round {step_count}")
+            plt.xlim(-1, GRID_SIZE + 1)
+            plt.ylim(-1, GRID_SIZE + 1)
+            plt.title(f"Test run {k + 1}/{n_test_runs}")
+            plt.pause(0.01)
 
-    plt.title(f"Agent took {len(results)} steps")
     plt.show()
 
 
