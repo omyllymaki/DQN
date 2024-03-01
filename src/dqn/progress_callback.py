@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+import numpy as np
 from matplotlib import pyplot as plt
 
 from src.dqn.data_buffer import DataBuffer
@@ -83,5 +84,28 @@ class ProgressCallbackVisDuration(ProgressCallback):
         plt.plot(self.durations, "b-")
         if self.running_mean_window_size is not None:
             plt.plot(running_mean(self.durations, self.running_mean_window_size), "r-", linewidth=2)
+        plt.plot()
+        plt.pause(0.001)
+
+
+class ProgressCallbackVisSumReward(ProgressCallback):
+
+    def __init__(self, running_mean_window_size=50) -> None:
+        super().__init__()
+        self.running_mean_window_size = running_mean_window_size
+        self.rewards = []
+
+    def push(self, data: DataBuffer) -> None:
+        episode_rewards_sum = np.sum([r.reward.item() for r in data])
+        self.rewards.append(episode_rewards_sum)
+
+    def apply(self) -> None:
+        plt.figure(1)
+        plt.cla()
+        plt.xlabel('Episode')
+        plt.ylabel('Cumulative reward')
+        plt.plot(self.rewards, "b-")
+        if self.running_mean_window_size is not None:
+            plt.plot(running_mean(self.rewards, self.running_mean_window_size), "r-", linewidth=2)
         plt.plot()
         plt.pause(0.001)
