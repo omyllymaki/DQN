@@ -16,7 +16,12 @@ from src.dqn.utils import running_mean
 
 logging.basicConfig(level=logging.INFO)
 
-GRID_SIZE = 30
+GRID_SIZE = 50
+TARGET = (25, 25)
+
+OBSTACLES = (
+(19, 12), (8, 30), (45, 39), (13, 20), (7, 29), (43, 3), (33, 22), (28, 6), (11, 9), (26, 23), (3, 13), (40, 35),
+(5, 28), (12, 9), (30, 33), (34, 38), (37, 20), (23, 16), (33, 26), (31, 9))
 
 
 class ProgressCallbackGridWorld(ProgressCallback):
@@ -26,14 +31,21 @@ class ProgressCallbackGridWorld(ProgressCallback):
         self.data = []
         self.vis_period = vis_period
         self.n_episodes_to_show = n_episodes_to_show
+        self.heatmap = np.zeros((GRID_SIZE, GRID_SIZE))
 
     def push(self, data: DataBuffer) -> None:
         self.data.append(data.get_all())
+        states = [item.state for item in data]
+        for state in states:
+            x = int(state[0][0].item())
+            y = int(state[0][1].item())
+            self.heatmap[x, y] += 1
 
     def apply(self) -> None:
         if len(self.data) % self.vis_period != 0:
             return
 
+        plt.figure(1)
         plt.subplot(1, 2, 1)
         plt.cla()
         plt.subplot(2, 2, 2)
@@ -101,18 +113,28 @@ class ProgressCallbackGridWorld(ProgressCallback):
         plt.title("Duration")
         plt.xlabel("Episode")
 
+        plt.figure(2)
+        plt.cla()
+        ub = np.percentile(self.heatmap, 95)
+        lb = np.percentile(self.heatmap, 5)
+        plt.imshow(self.heatmap.T, vmin=lb, vmax=ub)
+        plt.gca().invert_yaxis()
+        plt.plot(TARGET[0], TARGET[1], "ro")
+
+        for obs in OBSTACLES:
+            plt.plot(obs[0], obs[1], "bo")
+
         plt.pause(0.1)
+
+        # self.heatmap = np.zeros((GRID_SIZE, GRID_SIZE))
 
 
 def main():
-    fixed_obstacles = (
-        (11, 24), (13, 2), (7, 11), (4, 8), (24, 5), (19, 20), (5, 15), (13, 24), (8, 17), (28, 7), (0, 22), (4, 1),
-        (17, 2), (19, 21), (4, 0))
     env = GridWorldEnv(size=GRID_SIZE,
                        n_obstacles=15,
-                       # fixed_agent_start_point=(0, 0),
-                       fixed_target_point=(15, 15),
-                       fixed_obstacles=fixed_obstacles)
+                       fixed_agent_start_point=(0, 0),
+                       fixed_target_point=TARGET,
+                       fixed_obstacles=OBSTACLES)
 
     n_actions = env.action_space.n
     state, _ = env.reset()
@@ -135,6 +157,10 @@ def main():
     train_param.progress_cb = ProgressCallbackGridWorld(vis_period=10, n_episodes_to_show=10)
     train_param.eps_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
 
+    # train_param.dropout_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
+    train_param.eps_scheduler = ConstValueScheduler(0.0)
+    train_param.eps_scheduler = LinearScheduler(slope=-1 / 300, start_value=1.0, min_value=0)
+
     agent = DQNAgent(param)
 
     t1 = time.time()
@@ -144,11 +170,11 @@ def main():
     n_step_total = agent.steps_done_total
     print(f"Training took {duration} s for {n_step_total} steps, {n_step_total / duration:0.0f} steps/s")
 
+    plt.figure()
     n_test_runs = 30
     for k in range(n_test_runs):
         results = agent.run(env, 50)
 
-        plt.figure(2)
         xs, ys = [], []
         for step_count, item in enumerate(results):
             observation, reward, terminated, truncated, _ = item

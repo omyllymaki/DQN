@@ -18,12 +18,14 @@ class Parameters:
     Attributes:
     obs_dim: Observation vector size.
     action_dim: Action vector size.
+    n_nets: Number of models.
     net: Model to learn Q function.
     device: Device used.
     """
     obs_dim = None
     action_dim = None
     net = FNN
+    n_nets = 1
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
@@ -41,7 +43,8 @@ class TrainParameters:
     learning_rate: Optimizer learning rate.
     sampling_strategy: Strategy to draw samples from replay memory.
     discount_scheduler: Scheduler to update discount factors during training. Discount factor determines the importance of future rewards relative to immediate rewards.
-    eps_scheduler: Scheduler to update eps values during training. eps is probability to select random action and drives exploration in the system.
+    eps_scheduler: Scheduler to update eps values during training. eps is probability to select "exploration" instead of best action.
+    random_action_scheduler: Scheduler to update random action probablity. This determines choice between random action and getting most uncertain action in "exploration". 
     target_network_update_rate: Coefficient to update target network using exponential moving average.
     gradient_clipping: Gradient clipping applied in policy net updates.
     progress_cb: progress_cb is called after every episode and does defined steps to the data. See ProgressCallback for more information.
@@ -56,6 +59,7 @@ class TrainParameters:
     sampling_strategy = RandomSamplingStrategy(batch_size=128)
     discount_scheduler = ConstValueScheduler(0.9)
     eps_scheduler = ExpDecayScheduler(start=0.9, end=0.05, decay=10000)
+    random_action_scheduler = ConstValueScheduler(1.0)
     target_network_update_rate = 0.005
     gradient_clipping = 100
     progress_cb = ProgressCallbackSimple()
