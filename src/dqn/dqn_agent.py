@@ -1,5 +1,6 @@
 import logging
 import random
+from statistics import mode
 from typing import Optional, List
 
 import gym
@@ -29,25 +30,29 @@ class DQNAgent:
 
     def __init__(self, parameters: Parameters) -> None:
         self.param = parameters
-        self.policy_net = None
-        self.target_net = None
+        self.policy_nets = []
+        self.target_nets = []
         self.train_param = None
-        self.optimizer = None
+        self.optimizers = None
         self.memory = None
         self.eps = None
         self.discount_factor = None
+        self.dropout = None
         self.steps_done_total = 0
         self.reset()
 
     def reset(self) -> None:
-        self.policy_net = self.param.net(self.param.obs_dim, self.param.action_dim)
-        self.target_net = self.param.net(self.param.obs_dim, self.param.action_dim)
-        self.target_net.load_state_dict(self.policy_net.state_dict())  # Set same init weights as in policy_net
-        self.policy_net.to(self.param.device)
-        self.target_net.to(self.param.device)
+        for k in range(10):
+            policy_net = self.param.net(self.param.obs_dim, self.param.action_dim)
+            target_net = self.param.net(self.param.obs_dim, self.param.action_dim)
+            target_net.load_state_dict(policy_net.state_dict())  # Set same init weights as in policy_net
+            policy_net.to(self.param.device)
+            target_net.to(self.param.device)
+            self.policy_nets.append(policy_net)
+            self.target_nets.append(target_net)
 
         self.train_param = None
-        self.optimizer = None
+        self.optimizers = None
         self.memory = None
         self.eps = None
         self.discount_factor = None
@@ -79,9 +84,12 @@ class DQNAgent:
             rewards: all the rewards collected during training.
         """
         self.train_param = train_param
-        self.optimizer = train_param.optimizer(self.policy_net.parameters(),
-                                               lr=self.train_param.learning_rate,
-                                               amsgrad=True)
+        self.optimizers = []
+        for policy_net in self.policy_nets:
+            optimizer = train_param.optimizer(policy_net.parameters(),
+                                              lr=self.train_param.learning_rate,
+                                              amsgrad=True)
+            self.optimizers.append(optimizer)
         self.memory = DataBuffer(train_param.buffer_size)
         self.steps_done_total = 0
 
@@ -118,9 +126,10 @@ class DQNAgent:
                 episode_data.push(state, action, next_state, reward)
                 self.memory.push(state, action, next_state, reward)
                 state = next_state
-                loss = self._update_policy_model()
-                logger.debug(f"Episode {i_episode}, step count {step_counter}, loss {loss}")
-                self._update_target_net()
+                for policy_net, target_net, optimizer in zip(self.policy_nets, self.target_nets, self.optimizers):
+                    loss = self._update_policy_model(policy_net, target_net, optimizer)
+                    logger.debug(f"Episode {i_episode}, step count {step_counter}, loss {loss}")
+                    self._update_target_net(policy_net, target_net)
 
                 if done:
                     if terminated:
@@ -179,17 +188,31 @@ class DQNAgent:
 
     def _get_best_action(self, state: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
-            q_values = self.policy_net.forward(state)
-            return torch.argmax(q_values).view(1, 1)
+            best_actions = []
+            for policy_net in self.policy_nets:
+                q_values = policy_net.forward(state)
+                best_action = torch.argmax(q_values)
+                best_actions.append(best_action)
+            best_action_voted = mode(best_actions)
+            output = best_action_voted.view(1, 1)
+            return output
 
     def _select_action(self, state: torch.Tensor, env: gym.Env) -> torch.Tensor:
         sample = random.random()
         if sample > self.eps:
             return self._get_best_action(state)
         else:
-            return torch.tensor([[env.action_space.sample()]], device=self.param.device, dtype=torch.long)
+            with torch.no_grad():
+                q_values_list = []
+                for policy_net in self.policy_nets:
+                    q_values = policy_net.forward(state)
+                    q_values_list.append(q_values)
+                concatenated_q_values = torch.cat(q_values_list, dim=0)
+                std = concatenated_q_values.std(dim=0)
+                output = torch.argmax(std)
+                return output.view(1, 1)
 
-    def _update_policy_model(self) -> Optional[float]:
+    def _update_policy_model(self, policy_net, target_net, optimizer) -> Optional[float]:
         if len(self.memory) < self.train_param.batch_size:
             return None
 
@@ -210,7 +233,7 @@ class DQNAgent:
 
         # Compute Q values for the states.
         # Then we select the columns based on actions taken.
-        q_values = self.policy_net(state_batch)  # "Q table", [batch_size, n_actions] tensor
+        q_values = policy_net(state_batch)  # "Q table", [batch_size, n_actions] tensor
         current_state_action_values = q_values.gather(1, action_batch)  # Q values for every action taken
 
         # Expected values of actions are computed based on the smoothed target_net by selecting their best Q values for the next states
@@ -218,7 +241,7 @@ class DQNAgent:
         # We need to use is_not_none mask here in order to handle none values of the next states (final states)
         action_values_for_next_states = torch.zeros(self.train_param.batch_size, device=self.param.device)
         with torch.no_grad():
-            action_values_for_next_states[is_not_none] = self.target_net(non_final_next_states).max(1).values
+            action_values_for_next_states[is_not_none] = target_net(non_final_next_states).max(1).values
         expected_state_action_values = (action_values_for_next_states * self.discount_factor) + reward_batch
 
         # Minimize delta = current_state_action_values - expected_state_action_values by updating weights of the policy_net
@@ -226,21 +249,21 @@ class DQNAgent:
         loss = criterion(current_state_action_values, expected_state_action_values.unsqueeze(1))
 
         # Just regular weight update using gradient descent but with gradient clipping
-        self.optimizer.zero_grad()
+        optimizer.zero_grad()
         loss.backward()
         if self.train_param.gradient_clipping is not None:
-            torch.nn.utils.clip_grad_value_(self.policy_net.parameters(),
+            torch.nn.utils.clip_grad_value_(policy_net.parameters(),
                                             self.train_param.gradient_clipping)  # In-place gradient clipping
-        self.optimizer.step()
+        optimizer.step()
 
         return loss.item()
 
-    def _update_target_net(self):
+    def _update_target_net(self, policy_net, target_net):
         # Target net weights are updated using exponential moving average
         # New values come from policy net
-        target_net_state_dict = self.target_net.state_dict()
-        policy_net_state_dict = self.policy_net.state_dict()
+        target_net_state_dict = target_net.state_dict()
+        policy_net_state_dict = policy_net.state_dict()
         ur = self.train_param.target_network_update_rate
         for key in policy_net_state_dict:
             target_net_state_dict[key] = policy_net_state_dict[key] * ur + target_net_state_dict[key] * (1 - ur)
-        self.target_net.load_state_dict(target_net_state_dict)
+        target_net.load_state_dict(target_net_state_dict)
