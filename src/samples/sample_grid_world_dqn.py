@@ -10,6 +10,7 @@ from src.dqn.data_buffer import DataBuffer
 from src.dqn.dqn_agent import DQNAgent
 from src.dqn.parameters import Parameters, TrainParameters
 from src.dqn.progress_callback import ProgressCallback, ProgressCallbackVisLatestRewards, ProgressCallbackVisSumReward
+from src.dqn.sampling_strategy import RewardFreqBasedSamplingStrategy
 from src.dqn.scheduler import ExpDecayScheduler, ConstValueScheduler, LinearScheduler
 from src.dqn.utils import running_mean
 
@@ -146,6 +147,7 @@ def main():
     print(f"Using {param.device} as device")
 
     train_param = TrainParameters()
+    train_param.sampling_strategy = RewardFreqBasedSamplingStrategy(batch_size=128)
     train_param.discount_scheduler = ConstValueScheduler(0.9)
     train_param.n_episodes = 1000
     train_param.max_steps_per_episode = 200
