@@ -33,16 +33,17 @@ class DQNAgent:
         self.policy_nets = []
         self.target_nets = []
         self.train_param = None
-        self.optimizers = None
+        self.optimizers = []
         self.memory = None
         self.eps = None
+        self.p_random_action = None
         self.discount_factor = None
         self.dropout = None
         self.steps_done_total = 0
         self.reset()
 
     def reset(self) -> None:
-        for k in range(10):
+        for _ in range(self.param.n_nets):
             policy_net = self.param.net(self.param.obs_dim, self.param.action_dim)
             target_net = self.param.net(self.param.obs_dim, self.param.action_dim)
             target_net.load_state_dict(policy_net.state_dict())  # Set same init weights as in policy_net
@@ -108,6 +109,10 @@ class DQNAgent:
                                                                                  step_counter,
                                                                                  self.steps_done_total)
                 logger.debug(f"N steps done {self.steps_done_total}, discount factor {self.discount_factor}")
+                self.p_random_action = self.train_param.random_action_scheduler.apply(i_episode,
+                                                                                      step_counter,
+                                                                                      self.steps_done_total)
+                logger.debug(f"N steps done {self.steps_done_total}, random action probability {self.p_random_action}")
 
                 action = self._select_action(state, env)
                 self.steps_done_total += 1
@@ -197,20 +202,28 @@ class DQNAgent:
             output = best_action_voted.view(1, 1)
             return output
 
+    def _get_most_uncertain_action(self, state):
+        with torch.no_grad():
+            q_values_list = []
+            for policy_net in self.policy_nets:
+                q_values = policy_net.forward(state)
+                q_values_list.append(q_values)
+            concatenated_q_values = torch.cat(q_values_list, dim=0)
+            std = concatenated_q_values.std(dim=0)
+            output = torch.argmax(std)  # Most uncertain action is the one which has the most deviation among the models.
+            return output.view(1, 1)
+
     def _select_action(self, state: torch.Tensor, env: gym.Env) -> torch.Tensor:
+        # TODO: refactor this. Maybe a separate ActionSelectionStrategy class?
         sample = random.random()
         if sample > self.eps:
             return self._get_best_action(state)
         else:
-            with torch.no_grad():
-                q_values_list = []
-                for policy_net in self.policy_nets:
-                    q_values = policy_net.forward(state)
-                    q_values_list.append(q_values)
-                concatenated_q_values = torch.cat(q_values_list, dim=0)
-                std = concatenated_q_values.std(dim=0)
-                output = torch.argmax(std)
-                return output.view(1, 1)
+            p = random.random()
+            if p > self.p_random_action:
+                return self._get_most_uncertain_action(state)
+            else:
+                return torch.tensor([[env.action_space.sample()]], device=self.param.device, dtype=torch.long)
 
     def _update_policy_model(self, policy_net, target_net, optimizer) -> Optional[float]:
         batch = self.train_param.sampling_strategy.apply(self.memory)
@@ -235,7 +248,8 @@ class DQNAgent:
         # Expected values of actions are computed based on the smoothed target_net by selecting their best Q values for the next states
         # This adds stability, compared to calculating these with policy_net
         # We need to use is_not_none mask here in order to handle none values of the next states (final states)
-        action_values_for_next_states = torch.zeros(self.train_param.sampling_strategy.batch_size, device=self.param.device)
+        action_values_for_next_states = torch.zeros(self.train_param.sampling_strategy.batch_size,
+                                                    device=self.param.device)
         with torch.no_grad():
             action_values_for_next_states[is_not_none] = target_net(non_final_next_states).max(1).values
         expected_state_action_values = (action_values_for_next_states * self.discount_factor) + reward_batch
