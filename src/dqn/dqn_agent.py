@@ -190,13 +190,10 @@ class DQNAgent:
             return torch.tensor([[env.action_space.sample()]], device=self.param.device, dtype=torch.long)
 
     def _update_policy_model(self) -> Optional[float]:
-        if len(self.memory) < self.train_param.batch_size:
-            return None
 
-        # We get random sample from memory for the update, instead of the latest samples.
-        # This is called "experience replay".
-        # This removes correlations in the observation sequence and smooths changes in the data distribution.
-        batch = self.memory.get_batch(self.train_param.batch_size)
+        batch = self.train_param.sampling_strategy.apply(self.memory)
+        if batch is None:
+            return
 
         # Compute a mask for not-non values (none means terminated episode)
         is_not_none = torch.tensor([i is not None for i in batch.next_state], device=self.param.device,
@@ -216,7 +213,7 @@ class DQNAgent:
         # Expected values of actions are computed based on the smoothed target_net by selecting their best Q values for the next states
         # This adds stability, compared to calculating these with policy_net
         # We need to use is_not_none mask here in order to handle none values of the next states (final states)
-        action_values_for_next_states = torch.zeros(self.train_param.batch_size, device=self.param.device)
+        action_values_for_next_states = torch.zeros(self.train_param.sampling_strategy.batch_size, device=self.param.device)
         with torch.no_grad():
             action_values_for_next_states[is_not_none] = self.target_net(non_final_next_states).max(1).values
         expected_state_action_values = (action_values_for_next_states * self.discount_factor) + reward_batch

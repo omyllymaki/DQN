@@ -6,6 +6,7 @@ import torch.optim as optim
 
 from src.dqn.model import FNN
 from src.dqn.progress_callback import ProgressCallbackSimple
+from src.dqn.sampling_strategy import SamplingStrategy, RandomSamplingStrategy
 from src.dqn.scheduler import ExpDecayScheduler, ConstValueScheduler
 
 
@@ -38,7 +39,7 @@ class TrainParameters:
     max_steps_per_episode: Maximum number of steps the agent can take during one episode.
     buffer_size: Size of the memory used to sample data for updates.
     learning_rate: Optimizer learning rate.
-    batch_size: Batch size for updates.
+    sampling_strategy: Strategy to draw samples from replay memory.
     discount_scheduler: Scheduler to update discount factors during training. Discount factor determines the importance of future rewards relative to immediate rewards.
     eps_scheduler: Scheduler to update eps values during training. eps is probability to select random action and drives exploration in the system.
     target_network_update_rate: Coefficient to update target network using exponential moving average.
@@ -52,7 +53,7 @@ class TrainParameters:
     n_episodes = 500
     buffer_size = 10000
     learning_rate = 1e-4
-    batch_size = 128
+    sampling_strategy = RandomSamplingStrategy(batch_size=128)
     discount_scheduler = ConstValueScheduler(0.9)
     eps_scheduler = ExpDecayScheduler(start=0.9, end=0.05, decay=10000)
     target_network_update_rate = 0.005
