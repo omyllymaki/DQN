@@ -30,10 +30,11 @@ OBSTACLES = (
 )
 
 
-def state_hash_func(state):
-    x = state[0][0].item()
-    y = state[0][1].item()
-    return int(x), int(y)
+class StateHashing:
+    def apply(self, state):
+        x = state[0][0].item()
+        y = state[0][1].item()
+        return int(x), int(y)
 
 
 class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
@@ -72,7 +73,7 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
         train_param.exploration_bonus_reward_coeff_scheduler = LinearScheduler(slope=-1 / 700,
                                                                                start_value=1.0,
                                                                                min_value=0)
-        train_param.state_hash_func = state_hash_func
+        train_param.state_hashing = StateHashing()
 
         agent = DQNAgent(param)
 

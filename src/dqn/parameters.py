@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+from src.dqn.hashing import RewardHashing
 from src.dqn.model import FNN
 from src.dqn.progress_callback import ProgressCallbackSimple
 from src.dqn.sampling_strategy import SamplingStrategy, RandomSamplingStrategy
@@ -62,7 +63,8 @@ class TrainParameters:
     discount_scheduler = ConstValueScheduler(0.9)
     eps_scheduler = ExpDecayScheduler(start=0.9, end=0.05, decay=10000)
     random_action_scheduler = ConstValueScheduler(1.0)
-    state_hash_func = None
+    reward_hashing = RewardHashing(1)
+    state_hashing = None
     exploration_bonus_reward_coeff_scheduler = ConstValueScheduler(0)
     target_network_update_rate = 0.005
     gradient_clipping = 100

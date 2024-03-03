@@ -142,10 +142,11 @@ class ProgressCallbackGridWorld(ProgressCallback):
         # self.heatmap = np.zeros((GRID_SIZE, GRID_SIZE))
 
 
-def state_hash_func(state):
-    x = state[0][0].item()
-    y = state[0][1].item()
-    return int(x), int(y)
+class StateHashing:
+    def apply(self, state):
+        x = state[0][0].item()
+        y = state[0][1].item()
+        return int(x), int(y)
 
 
 def main():
@@ -171,7 +172,7 @@ def main():
     train_param.progress_cb = ProgressCallbackGridWorld(vis_period=10, n_episodes_to_show=10)
     train_param.eps_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
     train_param.exploration_bonus_reward_coeff_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
-    train_param.state_hash_func = state_hash_func
+    train_param.state_hashing = StateHashing()
 
     agent = DQNAgent(param)
 

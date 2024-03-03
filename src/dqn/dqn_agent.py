@@ -93,7 +93,7 @@ class DQNAgent:
                                               lr=self.train_param.learning_rate,
                                               amsgrad=True)
             self.optimizers.append(optimizer)
-        self.memory = Memory(train_param.buffer_size, self.train_param.state_hash_func)
+        self.memory = Memory(train_param.buffer_size, self.train_param.reward_hashing, self.train_param.state_hashing)
         self.steps_done_total = 0
 
         rewards = []
@@ -249,7 +249,7 @@ class DQNAgent:
         action_batch = torch.cat(batch.action)
         reward_batch = torch.cat(batch.reward)
 
-        if self.train_param.state_hash_func is not None:
+        if self.train_param.state_hashing is not None:
             bonus_reward = self.bonus_reward_coeff / torch.sqrt(torch.Tensor(batch.state_count).to(self.param.device))
             reward_batch += bonus_reward
 
