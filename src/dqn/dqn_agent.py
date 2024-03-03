@@ -115,9 +115,9 @@ class DQNAgent:
                                                                                       step_counter,
                                                                                       self.steps_done_total)
                 logger.debug(f"N steps done {self.steps_done_total}, random action probability {self.p_random_action}")
-                self.bonus_reward_coeff = self.train_param.bonus_reward_coeff_scheduler.apply(i_episode,
-                                                                                              step_counter,
-                                                                                              self.steps_done_total)
+                self.bonus_reward_coeff = self.train_param.exploration_bonus_reward_coeff_scheduler.apply(i_episode,
+                                                                                                          step_counter,
+                                                                                                          self.steps_done_total)
                 logger.debug(f"N steps done {self.steps_done_total}, bonus reward coeff {self.bonus_reward_coeff}")
 
                 action = self._select_action(state, env)

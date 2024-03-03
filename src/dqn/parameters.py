@@ -44,7 +44,9 @@ class TrainParameters:
     sampling_strategy: Strategy to draw samples from replay memory.
     discount_scheduler: Scheduler to update discount factors during training. Discount factor determines the importance of future rewards relative to immediate rewards.
     eps_scheduler: Scheduler to update eps values during training. eps is probability to select "exploration" instead of best action.
-    random_action_scheduler: Scheduler to update random action probablity. This determines choice between random action and getting most uncertain action in "exploration". 
+    random_action_scheduler: Scheduler to update random action probablity. This determines choice between random action and getting most uncertain action in "exploration".
+    state_hash_func: function to map state to hash. Hash is used to count for every state hash, and this is used to calculate exploration bonus reward.
+    exploration_bonus_reward_coeff_scheduler: Coefficient used to calculate bonus reward based on hashed state counts.
     target_network_update_rate: Coefficient to update target network using exponential moving average.
     gradient_clipping: Gradient clipping applied in policy net updates.
     progress_cb: progress_cb is called after every episode and does defined steps to the data. See ProgressCallback for more information.
@@ -61,7 +63,7 @@ class TrainParameters:
     eps_scheduler = ExpDecayScheduler(start=0.9, end=0.05, decay=10000)
     random_action_scheduler = ConstValueScheduler(1.0)
     state_hash_func = None
-    bonus_reward_coeff_scheduler = ConstValueScheduler(0)
+    exploration_bonus_reward_coeff_scheduler = ConstValueScheduler(0)
     target_network_update_rate = 0.005
     gradient_clipping = 100
     progress_cb = ProgressCallbackSimple()

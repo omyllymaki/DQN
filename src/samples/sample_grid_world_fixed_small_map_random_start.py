@@ -10,6 +10,7 @@ from src.dqn.memory import Memory
 from src.dqn.dqn_agent import DQNAgent
 from src.dqn.parameters import Parameters, TrainParameters
 from src.dqn.progress_callback import ProgressCallback
+from src.dqn.sampling_strategy import RewardFreqBasedSamplingStrategy
 from src.dqn.scheduler import LinearScheduler
 from src.dqn.utils import running_mean
 
@@ -169,7 +170,7 @@ def main():
     train_param.target_network_update_rate = 0.01
     train_param.progress_cb = ProgressCallbackGridWorld(vis_period=10, n_episodes_to_show=10)
     train_param.eps_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
-    train_param.bonus_reward_coeff_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
+    train_param.exploration_bonus_reward_coeff_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
     train_param.state_hash_func = state_hash_func
 
     agent = DQNAgent(param)
