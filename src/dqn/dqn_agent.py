@@ -103,22 +103,7 @@ class DQNAgent:
             episode_data = Memory(self.train_param.max_steps_per_episode)
             episode_rewards = []
             for step_counter in range(self.train_param.max_steps_per_episode):
-                self.eps = self.train_param.eps_scheduler.apply(i_episode,
-                                                                step_counter,
-                                                                self.steps_done_total)
-                logger.debug(f"N steps done {self.steps_done_total}, epsilon {self.eps}")
-                self.discount_factor = self.train_param.discount_scheduler.apply(i_episode,
-                                                                                 step_counter,
-                                                                                 self.steps_done_total)
-                logger.debug(f"N steps done {self.steps_done_total}, discount factor {self.discount_factor}")
-                self.p_random_action = self.train_param.random_action_scheduler.apply(i_episode,
-                                                                                      step_counter,
-                                                                                      self.steps_done_total)
-                logger.debug(f"N steps done {self.steps_done_total}, random action probability {self.p_random_action}")
-                self.bonus_reward_coeff = self.train_param.exploration_bonus_reward_coeff_scheduler.apply(i_episode,
-                                                                                                          step_counter,
-                                                                                                          self.steps_done_total)
-                logger.debug(f"N steps done {self.steps_done_total}, bonus reward coeff {self.bonus_reward_coeff}")
+                self._scheduled_updates(i_episode, step_counter)
 
                 action = self._select_action(state, env)
                 self.steps_done_total += 1
@@ -196,6 +181,24 @@ class DQNAgent:
                     f"The run was ended because max number of steps {step_counter + 1} was reached")
 
         return results
+
+    def _scheduled_updates(self, i_episode, step_counter):
+        self.eps = self.train_param.eps_scheduler.apply(i_episode,
+                                                        step_counter,
+                                                        self.steps_done_total)
+        logger.debug(f"N steps done {self.steps_done_total}, epsilon {self.eps}")
+        self.discount_factor = self.train_param.discount_scheduler.apply(i_episode,
+                                                                         step_counter,
+                                                                         self.steps_done_total)
+        logger.debug(f"N steps done {self.steps_done_total}, discount factor {self.discount_factor}")
+        self.p_random_action = self.train_param.random_action_scheduler.apply(i_episode,
+                                                                              step_counter,
+                                                                              self.steps_done_total)
+        logger.debug(f"N steps done {self.steps_done_total}, random action probability {self.p_random_action}")
+        self.bonus_reward_coeff = self.train_param.exploration_bonus_reward_coeff_scheduler.apply(i_episode,
+                                                                                                  step_counter,
+                                                                                                  self.steps_done_total)
+        logger.debug(f"N steps done {self.steps_done_total}, exploration bonus reward coeff {self.bonus_reward_coeff}")
 
     def _get_best_action(self, state: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
