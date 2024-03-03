@@ -46,7 +46,8 @@ class TrainParameters:
     discount_scheduler: Scheduler to update discount factors during training. Discount factor determines the importance of future rewards relative to immediate rewards.
     eps_scheduler: Scheduler to update eps values during training. eps is probability to select "exploration" instead of best action.
     random_action_scheduler: Scheduler to update random action probablity. This determines choice between random action and getting most uncertain action in "exploration".
-    state_hash_func: function to map state to hash. Hash is used to count for every state hash, and this is used to calculate exploration bonus reward.
+    reward_hashing: class to map reward to hash. Hash is used to calculate count for every reward hash.
+    state_hashing: class to map state to hash. Hash is used to calculate count for every state hash, and this is used to calculate exploration bonus reward.
     exploration_bonus_reward_coeff_scheduler: Coefficient used to calculate bonus reward based on hashed state counts.
     target_network_update_rate: Coefficient to update target network using exponential moving average.
     gradient_clipping: Gradient clipping applied in policy net updates.
