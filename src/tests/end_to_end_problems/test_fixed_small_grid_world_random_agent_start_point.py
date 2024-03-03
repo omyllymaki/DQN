@@ -30,6 +30,12 @@ OBSTACLES = (
 )
 
 
+def state_hash_func(state):
+    x = state[0][0].item()
+    y = state[0][1].item()
+    return int(x), int(y)
+
+
 class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
 
     def setUp(self):
@@ -42,6 +48,31 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
 
     def test_training_with_default_parameters(self):
         param, train_param = self._init_param()
+
+        agent = DQNAgent(param)
+
+        t1 = time.time()
+        results = agent.train(self.env, train_param)
+        t2 = time.time()
+        duration = t2 - t1
+        n_step_total = agent.steps_done_total
+        n_steps_per_second = n_step_total / duration
+        print(f"Training took {duration} s for {n_step_total} steps, {n_steps_per_second:0.0f} steps/s")
+
+        last_episodes = results[-50:]
+        avg_cum_reward_last_episodes = np.mean([np.sum(item) for item in last_episodes])
+        print(f"Average cumulative rewards in last episodes: {avg_cum_reward_last_episodes}")
+
+        self.assertGreater(avg_cum_reward_last_episodes, 3)
+        self.assertGreater(n_steps_per_second, 150)
+
+    def test_training_with_exploration_bonus_reward(self):
+        param, train_param = self._init_param()
+
+        train_param.exploration_bonus_reward_coeff_scheduler = LinearScheduler(slope=-1 / 700,
+                                                                               start_value=1.0,
+                                                                               min_value=0)
+        train_param.state_hash_func = state_hash_func
 
         agent = DQNAgent(param)
 
