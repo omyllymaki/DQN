@@ -10,7 +10,7 @@ from src.dqn.data_buffer import DataBuffer
 from src.dqn.dqn_agent import DQNAgent
 from src.dqn.parameters import Parameters, TrainParameters
 from src.dqn.progress_callback import ProgressCallback, ProgressCallbackVisLatestRewards, ProgressCallbackVisSumReward
-from src.dqn.sampling_strategy import RewardFreqBasedSamplingStrategy
+from src.dqn.sampling_strategy import RewardFreqBasedSamplingStrategy, RandomSamplingStrategy
 from src.dqn.scheduler import ExpDecayScheduler, ConstValueScheduler, LinearScheduler
 from src.dqn.utils import running_mean
 
@@ -134,13 +134,15 @@ def main():
                        n_obstacles=15,
                        fixed_agent_start_point=(0, 0),
                        fixed_target_point=TARGET,
-                       fixed_obstacles=OBSTACLES)
+                       fixed_obstacles=OBSTACLES,
+                       target_reward=50)
 
     n_actions = env.action_space.n
     state, _ = env.reset()
     n_observations = len(state)
 
     param = Parameters()
+    param.n_nets = 1
     param.obs_dim = n_observations
     param.action_dim = n_actions
     param.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -150,16 +152,21 @@ def main():
     train_param.sampling_strategy = RewardFreqBasedSamplingStrategy(batch_size=128)
     train_param.discount_scheduler = ConstValueScheduler(0.9)
     train_param.n_episodes = 1000
-    train_param.max_steps_per_episode = 200
-    train_param.target_network_update_rate = 0.01
+    train_param.max_steps_per_episode = 300
+    train_param.target_network_update_rate = 0.005
     train_param.progress_cb = ProgressCallbackVisLatestRewards(50)
     train_param.progress_cb = ProgressCallbackVisSumReward(50)
     train_param.progress_cb = ProgressCallbackGridWorld(vis_period=10, n_episodes_to_show=10)
     train_param.eps_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
+    # train_param.random_action_scheduler = ConstValueScheduler(1)
 
     # train_param.dropout_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
-    train_param.eps_scheduler = ConstValueScheduler(0.0)
-    train_param.eps_scheduler = LinearScheduler(slope=-1 / 300, start_value=1.0, min_value=0)
+    # train_param.eps_scheduler = ConstValueScheduler(0.0)
+    train_param.eps_scheduler = LinearScheduler(slope=-0.9 / 500, start_value=0.9, min_value=0)
+    train_param.sampling_strategy = RandomSamplingStrategy(batch_size=128)
+    train_param.bonus_reward_coeff_scheduler = LinearScheduler(slope=- 1.0 / 500, start_value=1.0, min_value=0)
+
+    train_param.eps_scheduler = LinearScheduler(slope=-0.9 / 700, start_value=0.9, min_value=0)
 
     agent = DQNAgent(param)
 

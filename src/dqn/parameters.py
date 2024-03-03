@@ -60,6 +60,7 @@ class TrainParameters:
     discount_scheduler = ConstValueScheduler(0.9)
     eps_scheduler = ExpDecayScheduler(start=0.9, end=0.05, decay=10000)
     random_action_scheduler = ConstValueScheduler(1.0)
+    bonus_reward_coeff_scheduler = ConstValueScheduler(0.5)
     target_network_update_rate = 0.005
     gradient_clipping = 100
     progress_cb = ProgressCallbackSimple()

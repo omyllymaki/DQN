@@ -39,6 +39,7 @@ class DQNAgent:
         self.p_random_action = None
         self.discount_factor = None
         self.dropout = None
+        self.bonus_reward_coeff = None
         self.steps_done_total = 0
         self.reset()
 
@@ -57,6 +58,7 @@ class DQNAgent:
         self.memory = None
         self.eps = None
         self.discount_factor = None
+        self.bonus_reward_coeff = None
         self.steps_done_total = 0
 
     def train(self, env: gym.Env, train_param: TrainParameters) -> List[List[float]]:
@@ -113,6 +115,10 @@ class DQNAgent:
                                                                                       step_counter,
                                                                                       self.steps_done_total)
                 logger.debug(f"N steps done {self.steps_done_total}, random action probability {self.p_random_action}")
+                self.bonus_reward_coeff = self.train_param.bonus_reward_coeff_scheduler.apply(i_episode,
+                                                                                              step_counter,
+                                                                                              self.steps_done_total)
+                logger.debug(f"N steps done {self.steps_done_total}, bonus reward coeff {self.bonus_reward_coeff}")
 
                 action = self._select_action(state, env)
                 self.steps_done_total += 1
@@ -210,7 +216,7 @@ class DQNAgent:
                 q_values_list.append(q_values)
             concatenated_q_values = torch.cat(q_values_list, dim=0)
             std = concatenated_q_values.std(dim=0)
-            output = torch.argmax(std)  # Most uncertain action is the one which has the most deviation among the models.
+            output = torch.argmax(std)  # Most uncertain action is the one which has the most deviation among the models
             return output.view(1, 1)
 
     def _select_action(self, state: torch.Tensor, env: gym.Env) -> torch.Tensor:
@@ -226,7 +232,7 @@ class DQNAgent:
                 return torch.tensor([[env.action_space.sample()]], device=self.param.device, dtype=torch.long)
 
     def _update_policy_model(self, policy_net, target_net, optimizer) -> Optional[float]:
-        batch = self.train_param.sampling_strategy.apply(self.memory)
+        batch, counts = self.train_param.sampling_strategy.apply(self.memory)
         if batch is None:
             return
 
@@ -239,6 +245,9 @@ class DQNAgent:
         state_batch = torch.cat(batch.state)
         action_batch = torch.cat(batch.action)
         reward_batch = torch.cat(batch.reward)
+
+        bonus_reward = self.bonus_reward_coeff / torch.sqrt(torch.Tensor(counts).to(self.param.device))
+        reward_batch += bonus_reward
 
         # Compute Q values for the states.
         # Then we select the columns based on actions taken.

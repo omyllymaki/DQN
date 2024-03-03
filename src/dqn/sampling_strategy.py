@@ -34,9 +34,13 @@ class RandomSamplingStrategy(SamplingStrategy):
 
     def apply(self, data_buffer: DataBuffer) -> Optional[Transition]:
         if len(data_buffer) < self.batch_size:
-            return None
-        sample = random.sample(data_buffer.memory, self.batch_size)
-        return Transition(*zip(*sample))
+            return None, None
+        indices = np.arange(0, len(data_buffer.memory)).tolist()
+        sample_indices = random.sample(indices, self.batch_size)
+        sample = [data_buffer.memory[index] for index in sample_indices]
+        sample_state_hashes = [data_buffer.state_hashes[index] for index in sample_indices]
+        state_hash_counts = [data_buffer.hashed_state_counts[h] for h in sample_state_hashes]
+        return Transition(*zip(*sample)), state_hash_counts
 
 
 class RewardFreqBasedSamplingStrategy(SamplingStrategy):
