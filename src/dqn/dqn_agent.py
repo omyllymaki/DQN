@@ -6,7 +6,7 @@ from typing import Optional, List
 import gym
 import torch
 
-from src.dqn.data_buffer import DataBuffer
+from src.dqn.memory import Memory
 from src.dqn.parameters import Parameters, TrainParameters
 
 logger = logging.getLogger(__name__)
@@ -93,14 +93,14 @@ class DQNAgent:
                                               lr=self.train_param.learning_rate,
                                               amsgrad=True)
             self.optimizers.append(optimizer)
-        self.memory = DataBuffer(train_param.buffer_size)
+        self.memory = Memory(train_param.buffer_size, self.train_param.state_hash_func)
         self.steps_done_total = 0
 
         rewards = []
         for i_episode in range(train_param.n_episodes):
             state, _ = env.reset()
             state = torch.tensor(state, dtype=torch.float32, device=self.param.device).unsqueeze(0)
-            episode_data = DataBuffer(self.train_param.max_steps_per_episode)
+            episode_data = Memory(self.train_param.max_steps_per_episode)
             episode_rewards = []
             for step_counter in range(self.train_param.max_steps_per_episode):
                 self.eps = self.train_param.eps_scheduler.apply(i_episode,
@@ -232,7 +232,7 @@ class DQNAgent:
                 return torch.tensor([[env.action_space.sample()]], device=self.param.device, dtype=torch.long)
 
     def _update_policy_model(self, policy_net, target_net, optimizer) -> Optional[float]:
-        batch, counts = self.train_param.sampling_strategy.apply(self.memory)
+        batch = self.train_param.sampling_strategy.apply(self.memory)
         if batch is None:
             return
 
@@ -246,8 +246,9 @@ class DQNAgent:
         action_batch = torch.cat(batch.action)
         reward_batch = torch.cat(batch.reward)
 
-        bonus_reward = self.bonus_reward_coeff / torch.sqrt(torch.Tensor(counts).to(self.param.device))
-        reward_batch += bonus_reward
+        if self.train_param.state_hash_func is not None:
+            bonus_reward = self.bonus_reward_coeff / torch.sqrt(torch.Tensor(batch.state_count).to(self.param.device))
+            reward_batch += bonus_reward
 
         # Compute Q values for the states.
         # Then we select the columns based on actions taken.

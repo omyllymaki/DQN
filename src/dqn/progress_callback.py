@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from matplotlib import pyplot as plt
 
-from src.dqn.data_buffer import DataBuffer
+from src.dqn.memory import Memory
 from src.dqn.utils import running_mean
 
 
@@ -13,12 +13,12 @@ class ProgressCallback(ABC):
     """
 
     @abstractmethod
-    def push(self, data: DataBuffer) -> None:
+    def push(self, data: Memory) -> None:
         """
         Push data collected during episode.
 
         Args:
-            data (DataBuffer): data buffer, containing the data from the episode.
+            data (Memory): data buffer, containing the data from the episode.
         """
         raise NotImplementedError
 
@@ -35,7 +35,7 @@ class ProgressCallbackSimple(ProgressCallback):
     def __init__(self):
         self.data = None
 
-    def push(self, data: DataBuffer) -> None:
+    def push(self, data: Memory) -> None:
         self.data = data
 
     def apply(self) -> None:
@@ -49,7 +49,7 @@ class ProgressCallbackVisLatestRewards(ProgressCallback):
         self.running_mean_window_size = running_mean_window_size
         self.rewards = []
 
-    def push(self, data: DataBuffer) -> None:
+    def push(self, data: Memory) -> None:
         last_element = data[-1]
         self.rewards.append(last_element.reward.cpu().numpy())
 
@@ -72,7 +72,7 @@ class ProgressCallbackVisDuration(ProgressCallback):
         self.running_mean_window_size = running_mean_window_size
         self.durations = []
 
-    def push(self, data: DataBuffer) -> None:
+    def push(self, data: Memory) -> None:
         duration = len(data)
         self.durations.append(duration)
 
@@ -95,7 +95,7 @@ class ProgressCallbackVisSumReward(ProgressCallback):
         self.running_mean_window_size = running_mean_window_size
         self.rewards = []
 
-    def push(self, data: DataBuffer) -> None:
+    def push(self, data: Memory) -> None:
         episode_rewards_sum = np.sum([r.reward.item() for r in data])
         self.rewards.append(episode_rewards_sum)
 
