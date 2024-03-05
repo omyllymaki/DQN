@@ -161,21 +161,12 @@ def main():
     train_param.n_episodes = 1000
     train_param.max_steps_per_episode = 300
     train_param.target_network_update_rate = 0.005
-    train_param.progress_cb = ProgressCallbackVisLatestRewards(50)
-    train_param.progress_cb = ProgressCallbackVisSumReward(50)
     train_param.progress_cb = ProgressCallbackGridWorld(vis_period=10, n_episodes_to_show=10)
-    train_param.eps_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
-    train_param.exploration_bonus_reward_coeff_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
     train_param.state_hashing = StateHashing()
 
-    # train_param.dropout_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
-    # train_param.eps_scheduler = ConstValueScheduler(0.0)
-    train_param.eps_scheduler = LinearScheduler(slope=-0.9 / 500, start_value=0.9, min_value=0)
     train_param.sampling_strategy = RandomSamplingStrategy(batch_size=128)
-    train_param.exploration_bonus_reward_coeff_scheduler = LinearScheduler(slope=- 1.0 / 500, start_value=1.0,
-                                                                           min_value=0)
-
-    train_param.eps_scheduler = LinearScheduler(slope=-0.9 / 700, start_value=0.9, min_value=0)
+    train_param.exploration_bonus_reward_coeff_scheduler = ConstValueScheduler(0.05)
+    train_param.eps_scheduler = LinearScheduler(slope=-0.8 / 700, start_value=0.8, min_value=0.05)
 
     agent = DQNAgent(param)
 

@@ -7,7 +7,7 @@ from src.custom_environments.grid_world_env import GridWorldEnv
 from src.dqn.dqn_agent import DQNAgent
 from src.dqn.parameters import Parameters, TrainParameters
 from src.dqn.progress_callback import ProgressCallbackVisSumReward
-from src.dqn.scheduler import LinearScheduler
+from src.dqn.scheduler import LinearScheduler, ConstValueScheduler
 
 GRID_SIZE = 30
 TARGET = (15, 15)
@@ -70,9 +70,7 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
     def test_training_with_exploration_bonus_reward(self):
         param, train_param = self._init_param()
 
-        train_param.exploration_bonus_reward_coeff_scheduler = LinearScheduler(slope=-1 / 700,
-                                                                               start_value=1.0,
-                                                                               min_value=0)
+        train_param.exploration_bonus_reward_coeff_scheduler = ConstValueScheduler(0.05)
         train_param.state_hashing = StateHashing()
 
         agent = DQNAgent(param)
