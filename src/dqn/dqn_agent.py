@@ -14,18 +14,17 @@ logger = logging.getLogger(__name__)
 
 class DQNAgent:
     """
-    Deep Q Learning agent.
+    The implementation is quite standard DQN, including
+        - Simple feedforward network to approximate state-value function
+        - Replay memory
+        - Separate target network that is "smoothed" version of policy net
 
-    This class uses given model (neural net) to approximate Q function.
-
-    In training phase, the QLearner fits model weights and learns quality values for any state-action combination.
-    These weights are fitted so that expected cumulative reward is maximized. The learned Q function defines the policy of the agent.
-    After training, the agent can be used choose actions based on learned policy on selected environment.
-
-    Some details about the implementation:
-    - the agent uses experience replay: it holds history of samples, and chooses random for model updates
-    - internally it uses two models: policy model and target model
-    - target model is "smoothed" version of policy model, and it used to calculate expected values of actions for Q update
+    It also contains some experimental features:
+        - Option for using reward frequency as weighting factor when sampling data from replay memory
+        - Option for ensemble learning
+          - Voting best action based on multiple models
+          - Finding most uncertain actions in exploration phase using multiple models
+        - Option for adding reward bonus based on (hashed) state count as exploration strategy
     """
 
     def __init__(self, parameters: Parameters) -> None:
