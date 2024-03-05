@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from src.custom_environments.grid_world_env import GridWorldEnv
+from src.custom_environments.grid_world.grid_world_env import GridWorldEnv
 from src.dqn.dqn_agent import DQNAgent
 from src.dqn.parameters import Parameters, TrainParameters
 from src.dqn.progress_callback import ProgressCallbackVisSumReward

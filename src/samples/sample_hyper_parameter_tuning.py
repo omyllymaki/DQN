@@ -3,7 +3,7 @@ import logging
 import numpy as np
 import torch
 
-from src.custom_environments.grid_world_env import GridWorldEnv
+from src.custom_environments.grid_world.grid_world_env import GridWorldEnv
 from src.dqn.agent_optimizer import AgentOptimizer
 from src.dqn.dqn_agent import DQNAgent
 from src.dqn.parameters import Parameters, TrainParameters
