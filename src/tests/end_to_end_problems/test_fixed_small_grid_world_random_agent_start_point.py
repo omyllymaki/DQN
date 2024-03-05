@@ -7,7 +7,7 @@ from src.custom_environments.grid_world_env import GridWorldEnv
 from src.dqn.dqn_agent import DQNAgent
 from src.dqn.parameters import Parameters, TrainParameters
 from src.dqn.progress_callback import ProgressCallbackVisSumReward
-from src.dqn.scheduler import LinearScheduler
+from src.dqn.scheduler import LinearScheduler, ConstValueScheduler
 
 GRID_SIZE = 30
 TARGET = (15, 15)
@@ -30,6 +30,13 @@ OBSTACLES = (
 )
 
 
+class StateHashing:
+    def apply(self, state):
+        x = state[0][0].item()
+        y = state[0][1].item()
+        return int(x), int(y)
+
+
 class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
 
     def setUp(self):
@@ -42,6 +49,29 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
 
     def test_training_with_default_parameters(self):
         param, train_param = self._init_param()
+
+        agent = DQNAgent(param)
+
+        t1 = time.time()
+        results = agent.train(self.env, train_param)
+        t2 = time.time()
+        duration = t2 - t1
+        n_step_total = agent.steps_done_total
+        n_steps_per_second = n_step_total / duration
+        print(f"Training took {duration} s for {n_step_total} steps, {n_steps_per_second:0.0f} steps/s")
+
+        last_episodes = results[-50:]
+        avg_cum_reward_last_episodes = np.mean([np.sum(item) for item in last_episodes])
+        print(f"Average cumulative rewards in last episodes: {avg_cum_reward_last_episodes}")
+
+        self.assertGreater(avg_cum_reward_last_episodes, 3)
+        self.assertGreater(n_steps_per_second, 150)
+
+    def test_training_with_exploration_bonus_reward(self):
+        param, train_param = self._init_param()
+
+        train_param.exploration_bonus_reward_coeff_scheduler = ConstValueScheduler(0.05)
+        train_param.state_hashing = StateHashing()
 
         agent = DQNAgent(param)
 

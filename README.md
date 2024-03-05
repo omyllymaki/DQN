@@ -8,10 +8,11 @@ The implementation is quite standard DQN, including
 - Separate target network that is "smoothed" version of policy net
 
 I'm planning to add some experimental features. Now there are few
-- Using reward frequency as weighting factor when sampling data from replay memory 
+- Option for using reward frequency as weighting factor when sampling data from replay memory
 - Option for ensemble learning
   - Voting best action based on multiple models
   - Finding most uncertain actions in exploration phase using multiple models
+- Option for adding reward bonus based on (hashed) state count as exploration strategy
 
 # Examples
 

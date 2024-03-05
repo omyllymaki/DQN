@@ -6,11 +6,12 @@ import torch
 from matplotlib import pyplot as plt
 
 from src.custom_environments.grid_world_env import GridWorldEnv
-from src.dqn.data_buffer import DataBuffer
+from src.dqn.memory import Memory
 from src.dqn.dqn_agent import DQNAgent
 from src.dqn.parameters import Parameters, TrainParameters
 from src.dqn.progress_callback import ProgressCallback
-from src.dqn.scheduler import LinearScheduler
+from src.dqn.sampling_strategy import RewardFreqBasedSamplingStrategy
+from src.dqn.scheduler import LinearScheduler, ConstValueScheduler
 from src.dqn.utils import running_mean
 
 logging.basicConfig(level=logging.INFO)
@@ -45,7 +46,7 @@ class ProgressCallbackGridWorld(ProgressCallback):
         self.n_episodes_to_show = n_episodes_to_show
         self.heatmap = np.zeros((GRID_SIZE, GRID_SIZE))
 
-    def push(self, data: DataBuffer) -> None:
+    def push(self, data: Memory) -> None:
         self.data.append(data.get_all())
         states = [item.state for item in data]
         for state in states:
@@ -138,7 +139,14 @@ class ProgressCallbackGridWorld(ProgressCallback):
 
         plt.pause(0.1)
 
-        self.heatmap = np.zeros((GRID_SIZE, GRID_SIZE))
+        # self.heatmap = np.zeros((GRID_SIZE, GRID_SIZE))
+
+
+class StateHashing:
+    def apply(self, state):
+        x = state[0][0].item()
+        y = state[0][1].item()
+        return int(x), int(y)
 
 
 def main():
@@ -163,6 +171,8 @@ def main():
     train_param.target_network_update_rate = 0.01
     train_param.progress_cb = ProgressCallbackGridWorld(vis_period=10, n_episodes_to_show=10)
     train_param.eps_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
+    train_param.exploration_bonus_reward_coeff_scheduler = ConstValueScheduler(0.05)
+    train_param.state_hashing = StateHashing()
 
     agent = DQNAgent(param)
 
