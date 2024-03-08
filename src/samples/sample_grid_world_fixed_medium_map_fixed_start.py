@@ -6,8 +6,10 @@ from matplotlib import pyplot as plt
 
 from src.custom_environments.grid_world.grid_world_env import GridWorldEnv
 from src.dqn.count_based_exploration import CountBasedExploration
+from src.dqn.counter import SimpleHashedStateCounter, ModelHashedStateCounter
 from src.dqn.dqn_agent import DQNAgent
-from src.dqn.state_hashing import RandomProjectionStateHashing
+from src.dqn.pca import PCA
+from src.dqn.state_hashing import RandomProjectionStateHashing, PCAStateHashing
 from src.dqn.parameters import Parameters, TrainParameters
 from src.dqn.sampling_strategy import RandomSamplingStrategy
 from src.dqn.scheduler import ConstValueScheduler, LinearScheduler
@@ -32,11 +34,12 @@ class StateHashing:
 
 def main():
     env = GridWorldEnv(size=GRID_SIZE,
-                       n_obstacles=15,
+                       n_obstacles=len(OBSTACLES),
                        fixed_agent_start_point=(0, 0),
                        fixed_target_point=TARGET,
                        fixed_obstacles=OBSTACLES,
-                       target_reward=50)
+                       target_reward=50,
+                       obstacle_reward=-50)
 
     n_actions = env.action_space.n
     state, _ = env.reset()
@@ -64,9 +67,10 @@ def main():
 
     train_param.sampling_strategy = RandomSamplingStrategy(batch_size=128)
     train_param.eps_scheduler = LinearScheduler(slope=-0.8 / 700, start_value=0.8, min_value=0.05)
-    hashing = RandomProjectionStateHashing(10, n_observations, 10)
-    bonus_reward_coefficient_scheduler = ConstValueScheduler(0.05)
-    train_param.count_based_exploration = CountBasedExploration(hashing,
+    bonus_reward_coefficient_scheduler = ConstValueScheduler(1)
+    hashing = PCAStateHashing(n_components=2, factor=1)
+    counter = ModelHashedStateCounter(hashing)
+    train_param.count_based_exploration = CountBasedExploration(counter,
                                                                 bonus_reward_coefficient_scheduler)
 
     # train_param.count_based_exploration = None

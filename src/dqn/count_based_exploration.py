@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor
 
-from src.dqn.counter import HashBasedStateCounter
+from src.dqn.counter import SimpleHashedStateCounter, Counter
 from src.dqn.state_hashing import StateHashing
 from src.dqn.scheduler import Scheduler, Stage
 
@@ -14,10 +14,10 @@ class CountBasedExploration:
     """
 
     def __init__(self,
-                 state_hashing: StateHashing,
+                 counter: Counter,
                  bonus_reward_coefficient_scheduler: Scheduler
                  ):
-        self.counter = HashBasedStateCounter(state_hashing)
+        self.counter = counter
         self.bonus_reward_coefficient_scheduler = bonus_reward_coefficient_scheduler
 
     def push(self, state: Tensor):

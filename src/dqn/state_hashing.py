@@ -4,6 +4,8 @@ from typing import Any, Tuple, List, Union
 
 import torch
 
+from src.dqn.pca import PCA
+
 
 class StateHashing(ABC):
     """
@@ -15,6 +17,19 @@ class StateHashing(ABC):
         """
         Calculate hashes for multiple states. States is rank 2 tensor with samples as rows. Output items should be
         hashable.
+        """
+        raise NotImplementedError
+
+
+class ModelStateHashing(StateHashing):
+    """
+    Abstract interface for state hashing which requires model to fit.
+    """
+
+    @abstractmethod
+    def fit(self, states: torch.Tensor) -> List[Tuple[int]]:
+        """
+        Fit internal model used for hashing. Returns hashes for states.
         """
         raise NotImplementedError
 
@@ -39,3 +54,20 @@ class RandomProjectionStateHashing(StateHashing):
         projections = x_scaled @ self.projection_matrix
         values = torch.floor(projections).to(torch.int)
         return [tuple(row.tolist()) for row in values]
+
+
+class PCAStateHashing(ModelStateHashing):
+
+    def __init__(self, n_components=2, factor=1.0):
+        self.pca = PCA(n_components)
+        self.factor = factor
+
+    def fit(self, states: torch.Tensor) -> List[Tuple[int]]:
+        projections = self.pca.fit(states)
+        hashes_tensor = torch.round(projections / self.factor).to(torch.int)
+        return [tuple(row.tolist()) for row in hashes_tensor]
+
+    def hash(self, states: torch.Tensor) -> List[Tuple[int]]:
+        projections = self.pca.apply(states)
+        hashes_tensor = torch.round(projections / self.factor).to(torch.int)
+        return [tuple(row.tolist()) for row in hashes_tensor]

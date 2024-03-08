@@ -39,13 +39,6 @@ OBSTACLES = (
 )
 
 
-class StateHashingXY(StateHashing):
-    def hash(self, states):
-        agent_xy = states[:, [0, 1]]
-        hashes = torch.round(agent_xy).to(torch.int)
-        return [(h[0].item(), h[1].item()) for h in hashes]
-
-
 def main():
     env = GridWorldEnv(size=GRID_SIZE,
                        n_obstacles=15,
@@ -72,11 +65,7 @@ def main():
                                                         vis_period=10,
                                                         n_episodes_to_show=10)
     train_param.eps_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
-
-    hashing = StateHashingXY()
-    bonus_reward_coefficient_scheduler = ConstValueScheduler(0.05)
-    train_param.count_based_exploration = CountBasedExploration(hashing,
-                                                                bonus_reward_coefficient_scheduler)
+    train_param.count_based_exploration = None
 
     agent = DQNAgent(param)
 

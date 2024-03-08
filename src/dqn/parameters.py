@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from src.dqn.counter import HashBasedStateCounter
+from src.dqn.counter import SimpleHashedStateCounter
 from src.dqn.model import FNN
 from src.dqn.progress_callback import ProgressCallbackSimple
 from src.dqn.sampling_strategy import SamplingStrategy, RandomSamplingStrategy
