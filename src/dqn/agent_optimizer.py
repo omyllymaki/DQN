@@ -47,7 +47,7 @@ class AgentOptimizer:
             rewards = self.agent.train(env, train_param)
             t2 = time.time()
             duration = t2 - t1
-            n_step_total = self.agent.steps_done_total
+            n_step_total = self.agent.stage.n_steps_total
             print(f"Training took {duration} s for {n_step_total} steps, {n_step_total / duration:0.0f} steps/s")
 
             score = score_func(rewards)

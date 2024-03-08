@@ -24,7 +24,7 @@ class CartPoleTests(unittest.TestCase):
         results = agent.train(self.env, train_param)
         t2 = time.time()
         duration = t2 - t1
-        n_step_total = agent.steps_done_total
+        n_step_total = agent.stage.n_steps_total
         n_steps_per_second = n_step_total / duration
         print(f"Training took {duration} s for {n_step_total} steps, {n_steps_per_second:0.0f} steps/s")
 

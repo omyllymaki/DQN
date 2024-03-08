@@ -6,6 +6,8 @@ import torch
 from matplotlib import pyplot as plt
 
 from src.custom_environments.grid_world.grid_world_env import GridWorldEnv
+from src.dqn.count_based_exploration import CountBasedExploration
+from src.dqn.state_hashing import StateHashing
 from src.dqn.memory import Memory
 from src.dqn.dqn_agent import DQNAgent
 from src.dqn.parameters import Parameters, TrainParameters
@@ -37,11 +39,11 @@ OBSTACLES = (
 )
 
 
-class StateHashing:
-    def apply(self, state):
-        x = state[0][0].item()
-        y = state[0][1].item()
-        return int(x), int(y)
+class StateHashingXY(StateHashing):
+    def hash(self, states):
+        agent_xy = states[:, [0, 1]]
+        hashes = torch.round(agent_xy).to(torch.int)
+        return [(h[0].item(), h[1].item()) for h in hashes]
 
 
 def main():
@@ -70,8 +72,11 @@ def main():
                                                         vis_period=10,
                                                         n_episodes_to_show=10)
     train_param.eps_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
-    train_param.exploration_bonus_reward_coeff_scheduler = ConstValueScheduler(0.05)
-    train_param.state_hashing = StateHashing()
+
+    hashing = StateHashingXY()
+    bonus_reward_coefficient_scheduler = ConstValueScheduler(0.05)
+    train_param.count_based_exploration = CountBasedExploration(hashing,
+                                                                bonus_reward_coefficient_scheduler)
 
     agent = DQNAgent(param)
 
@@ -79,7 +84,7 @@ def main():
     agent.train(env, train_param)
     t2 = time.time()
     duration = t2 - t1
-    n_step_total = agent.steps_done_total
+    n_step_total = agent.stage.n_steps_total
     print(f"Training took {duration} s for {n_step_total} steps, {n_step_total / duration:0.0f} steps/s")
 
     plt.show()

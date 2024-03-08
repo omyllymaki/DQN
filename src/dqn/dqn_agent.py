@@ -1,5 +1,6 @@
 import logging
 import random
+import time
 from statistics import mode
 from typing import Optional, List
 
@@ -8,6 +9,7 @@ import torch
 
 from src.dqn.memory import Memory
 from src.dqn.parameters import Parameters, TrainParameters
+from src.dqn.scheduler import Stage
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +22,6 @@ class DQNAgent:
         - Separate target network that is "smoothed" version of policy net
 
     It also contains some experimental features:
-        - Option for using reward frequency as weighting factor when sampling data from replay memory
         - Option for ensemble learning
           - Voting best action based on multiple models
           - Finding most uncertain actions in exploration phase using multiple models
@@ -39,7 +40,7 @@ class DQNAgent:
         self.discount_factor = None
         self.dropout = None
         self.bonus_reward_coeff = None
-        self.steps_done_total = 0
+        self.stage = None
         self.reset()
 
     def reset(self) -> None:
@@ -58,7 +59,7 @@ class DQNAgent:
         self.eps = None
         self.discount_factor = None
         self.bonus_reward_coeff = None
-        self.steps_done_total = 0
+        self.stage = None
 
     def train(self, env: gym.Env, train_param: TrainParameters) -> List[List[float]]:
         """
@@ -92,8 +93,8 @@ class DQNAgent:
                                               lr=self.train_param.learning_rate,
                                               amsgrad=True)
             self.optimizers.append(optimizer)
-        self.memory = Memory(train_param.buffer_size, self.train_param.reward_hashing, self.train_param.state_hashing)
-        self.steps_done_total = 0
+        self.memory = Memory(train_param.buffer_size)
+        self.stage = Stage()
 
         rewards = []
         for i_episode in range(train_param.n_episodes):
@@ -102,10 +103,12 @@ class DQNAgent:
             episode_data = Memory(self.train_param.max_steps_per_episode)
             episode_rewards = []
             for step_counter in range(self.train_param.max_steps_per_episode):
-                self._scheduled_updates(i_episode, step_counter)
+                self.stage.i_episode = i_episode
+                self.stage.n_steps_episode = step_counter
+                self.stage.n_steps_total += 1
+                self._scheduled_updates()
 
                 action = self._select_action(state, env)
-                self.steps_done_total += 1
                 step_result = env.step(action.item())
                 logger.debug(f"Episode {i_episode}, step count {step_counter}, {step_result}")
                 observation, reward, terminated, truncated, _ = step_result
@@ -120,6 +123,8 @@ class DQNAgent:
 
                 episode_data.push(state, action, next_state, reward)
                 self.memory.push(state, action, next_state, reward)
+                if self.train_param.count_based_exploration is not None:
+                    self.train_param.count_based_exploration.push(state)
                 state = next_state
                 for policy_net, target_net, optimizer in zip(self.policy_nets, self.target_nets, self.optimizers):
                     loss = self._update_policy_model(policy_net, target_net, optimizer)
@@ -181,23 +186,10 @@ class DQNAgent:
 
         return results
 
-    def _scheduled_updates(self, i_episode, step_counter):
-        self.eps = self.train_param.eps_scheduler.apply(i_episode,
-                                                        step_counter,
-                                                        self.steps_done_total)
-        logger.debug(f"N steps done {self.steps_done_total}, epsilon {self.eps}")
-        self.discount_factor = self.train_param.discount_scheduler.apply(i_episode,
-                                                                         step_counter,
-                                                                         self.steps_done_total)
-        logger.debug(f"N steps done {self.steps_done_total}, discount factor {self.discount_factor}")
-        self.p_random_action = self.train_param.random_action_scheduler.apply(i_episode,
-                                                                              step_counter,
-                                                                              self.steps_done_total)
-        logger.debug(f"N steps done {self.steps_done_total}, random action probability {self.p_random_action}")
-        self.bonus_reward_coeff = self.train_param.exploration_bonus_reward_coeff_scheduler.apply(i_episode,
-                                                                                                  step_counter,
-                                                                                                  self.steps_done_total)
-        logger.debug(f"N steps done {self.steps_done_total}, exploration bonus reward coeff {self.bonus_reward_coeff}")
+    def _scheduled_updates(self):
+        self.eps = self.train_param.eps_scheduler.apply(self.stage)
+        self.discount_factor = self.train_param.discount_scheduler.apply(self.stage)
+        self.p_random_action = self.train_param.random_action_scheduler.apply(self.stage)
 
     def _get_best_action(self, state: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
@@ -248,9 +240,9 @@ class DQNAgent:
         action_batch = torch.cat(batch.action)
         reward_batch = torch.cat(batch.reward)
 
-        if self.train_param.state_hashing is not None:
-            bonus_reward = self.bonus_reward_coeff / torch.sqrt(torch.Tensor(batch.state_count).to(self.param.device))
-            reward_batch += bonus_reward
+        if self.train_param.count_based_exploration is not None:
+            bonus_reward = self.train_param.count_based_exploration.get_bonus_rewards(state_batch, self.stage)
+            reward_batch += bonus_reward.to(self.param.device)
 
         # Compute Q values for the states.
         # Then we select the columns based on actions taken.

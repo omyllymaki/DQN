@@ -39,17 +39,21 @@ class RandomSamplingStrategy(SamplingStrategy):
         return Transition(*zip(*sample))
 
 
-class RewardFreqBasedSamplingStrategy(SamplingStrategy):
+class TimeBasedSamplingStrategy(SamplingStrategy):
+    """
+    Sampling strategy that samples transitions based on time received (index in memory).
+    This can be used e.g. to favor more recent transitions in sampling.
+    """
 
     def __init__(self, batch_size: int, f_weighting: Optional[Callable] = None) -> None:
         self._batch_size = batch_size
         if f_weighting is None:
-            self.f_weighting = lambda x: 1 / np.sqrt(x)
+            self.f_weighting = lambda x: x
 
     def apply(self, data_buffer: Memory) -> Optional[Transition]:
         if len(data_buffer) < self.batch_size:
             return None
 
-        weights = [self.f_weighting(i.reward_count) for i in data_buffer.memory]
+        weights = [self.f_weighting(i) for i in range(len(data_buffer))]
         sample = random.choices(population=data_buffer.memory, weights=weights, k=self.batch_size)
         return Transition(*zip(*sample))
