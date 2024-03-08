@@ -22,7 +22,6 @@ class DQNAgent:
         - Separate target network that is "smoothed" version of policy net
 
     It also contains some experimental features:
-        - Option for using reward frequency as weighting factor when sampling data from replay memory
         - Option for ensemble learning
           - Voting best action based on multiple models
           - Finding most uncertain actions in exploration phase using multiple models
