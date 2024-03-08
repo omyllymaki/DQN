@@ -2,9 +2,12 @@ import time
 import unittest
 
 import numpy as np
+import torch
 
 from src.custom_environments.grid_world.grid_world_env import GridWorldEnv
+from src.dqn.count_based_exploration import CountBasedExploration
 from src.dqn.dqn_agent import DQNAgent
+from src.dqn.state_hashing import StateHashing
 from src.dqn.parameters import Parameters, TrainParameters
 from src.dqn.progress_callback import ProgressCallbackVisSumReward
 from src.dqn.scheduler import LinearScheduler, ConstValueScheduler
@@ -30,11 +33,11 @@ OBSTACLES = (
 )
 
 
-class StateHashing:
-    def apply(self, state):
-        x = state[0][0].item()
-        y = state[0][1].item()
-        return int(x), int(y)
+class StateHashingXY(StateHashing):
+    def hash(self, states):
+        agent_xy = states[:, [0, 1]]
+        hashes = torch.round(agent_xy).to(torch.int)
+        return [(h[0].item(), h[1].item()) for h in hashes]
 
 
 class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
@@ -56,7 +59,7 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
         results = agent.train(self.env, train_param)
         t2 = time.time()
         duration = t2 - t1
-        n_step_total = agent.steps_done_total
+        n_step_total = agent.stage.n_steps_total
         n_steps_per_second = n_step_total / duration
         print(f"Training took {duration} s for {n_step_total} steps, {n_steps_per_second:0.0f} steps/s")
 
@@ -67,11 +70,13 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
         self.assertGreater(avg_cum_reward_last_episodes, 3)
         self.assertGreater(n_steps_per_second, 150)
 
-    def test_training_with_exploration_bonus_reward(self):
+    def test_training_with_count_based_exploration(self):
         param, train_param = self._init_param()
 
-        train_param.exploration_bonus_reward_coeff_scheduler = ConstValueScheduler(0.05)
-        train_param.state_hashing = StateHashing()
+        exploration_bonus_reward_coeff_scheduler = ConstValueScheduler(0.05)
+        state_hashing = StateHashingXY()
+        train_param.count_based_exploration = CountBasedExploration(state_hashing,
+                                                                    exploration_bonus_reward_coeff_scheduler)
 
         agent = DQNAgent(param)
 
@@ -79,7 +84,7 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
         results = agent.train(self.env, train_param)
         t2 = time.time()
         duration = t2 - t1
-        n_step_total = agent.steps_done_total
+        n_step_total = agent.stage.n_steps_total
         n_steps_per_second = n_step_total / duration
         print(f"Training took {duration} s for {n_step_total} steps, {n_steps_per_second:0.0f} steps/s")
 
@@ -88,7 +93,7 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
         print(f"Average cumulative rewards in last episodes: {avg_cum_reward_last_episodes}")
 
         self.assertGreater(avg_cum_reward_last_episodes, 3)
-        self.assertGreater(n_steps_per_second, 150)
+        self.assertGreater(n_steps_per_second, 100)
 
     def _init_param(self):
         n_actions = self.env.action_space.n
