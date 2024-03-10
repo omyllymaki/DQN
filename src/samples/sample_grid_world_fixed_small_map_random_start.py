@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 
 from src.custom_environments.grid_world.grid_world_env import GridWorldEnv
 from src.dqn.count_based_exploration import CountBasedExploration
+from src.dqn.sampling_strategy import PrioritizedSamplingStrategy
 from src.dqn.state_hashing import StateHashing
 from src.dqn.memory import Memory
 from src.dqn.dqn_agent import DQNAgent
@@ -58,14 +59,16 @@ def main():
     train_param = TrainParameters()
     train_param.n_episodes = 1000
     train_param.max_steps_per_episode = 200
-    train_param.target_network_update_rate = 0.01
+    train_param.target_network_update_rate = 0.1
     train_param.progress_cb = ProgressCallbackGridWorld(grid_size=GRID_SIZE,
                                                         target=TARGET,
                                                         obstacles=OBSTACLES,
                                                         vis_period=10,
                                                         n_episodes_to_show=10)
-    train_param.eps_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
+    train_param.eps_scheduler = LinearScheduler(slope=-0.5 / 700, start_value=0.5, min_value=0)
     train_param.count_based_exploration = None
+
+    train_param.sampling_strategy = PrioritizedSamplingStrategy(128)
 
     agent = DQNAgent(param)
 

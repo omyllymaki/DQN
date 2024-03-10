@@ -5,7 +5,9 @@ from statistics import mode
 from typing import Optional, List
 
 import gym
+import numpy as np
 import torch
+from matplotlib import pyplot as plt
 
 from src.dqn.memory import Memory
 from src.dqn.parameters import Parameters, TrainParameters
@@ -226,7 +228,7 @@ class DQNAgent:
                 return torch.tensor([[env.action_space.sample()]], device=self.param.device, dtype=torch.long)
 
     def _update_policy_model(self, policy_net, target_net, optimizer) -> Optional[float]:
-        batch = self.train_param.sampling_strategy.apply(self.memory)
+        batch, sample_indices = self.train_param.sampling_strategy.apply(self.memory)
         if batch is None:
             return
 
@@ -258,7 +260,23 @@ class DQNAgent:
             action_values_for_next_states[is_not_none] = target_net(non_final_next_states).max(1).values
         expected_state_action_values = (action_values_for_next_states * self.discount_factor) + reward_batch
 
-        # Minimize delta = current_state_action_values - expected_state_action_values by updating weights of the policy_net
+        # Minimize temporal difference error by updating weights of the policy_net
+        # Temporal difference error = current_state_action_values - expected_state_action_values
+        temporal_diff_errors = current_state_action_values - expected_state_action_values.unsqueeze(1)
+
+        for index, td in zip(sample_indices, temporal_diff_errors):
+            k = 2
+            priority = 2*(1 / (1 + np.exp(-1*(abs(td.item())/k))) - 0.5)
+            self.memory.memory[index].priority = priority
+
+
+        # y = temporal_diff_errors.detach().cpu().numpy()
+        # if np.max(y) > 1:
+        #     plt.figure(3)
+        #     plt.cla()
+        #     plt.plot(y)
+        #     plt.pause(0.1)
+
         criterion = self.train_param.loss()
         loss = criterion(current_state_action_values, expected_state_action_values.unsqueeze(1))
 
