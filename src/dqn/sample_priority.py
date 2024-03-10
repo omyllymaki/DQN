@@ -15,10 +15,13 @@ class SamplePriority(ABC):
 
     @abstractmethod
     def apply(self, current_value: float, temporal_diff_error: float) -> float:
+        """
+        Calculate sample priority. Priority needs be within [0, 1], 1 meaning the highest priority.
+        """
         raise NotImplementedError
 
 
-class SigmoidSamplePriority(ABC):
+class SigmoidSamplePriority(SamplePriority):
 
     def __init__(self, k, alpha):
         self.k = k
@@ -26,4 +29,17 @@ class SigmoidSamplePriority(ABC):
 
     def apply(self, current_value: float, temporal_diff_error: float) -> float:
         new_value = 2 * (sigmoid(abs(temporal_diff_error), self.k) - 0.5)
+        return (1 - self.alpha) * current_value + self.alpha * new_value
+
+
+class PolynomialSamplePriority(SamplePriority):
+
+    def __init__(self, max_tde_error, beta, alpha):
+        self.max_tde_error = max_tde_error
+        self.beta = beta
+        self.alpha = alpha
+
+    def apply(self, current_value: float, temporal_diff_error: float) -> float:
+        new_value = (abs(temporal_diff_error) / self.max_tde_error) ** self.beta
+        new_value = min(1, new_value)
         return (1 - self.alpha) * current_value + self.alpha * new_value
