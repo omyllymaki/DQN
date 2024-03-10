@@ -9,6 +9,12 @@ class Stage:
     n_steps_episode = 0
     n_steps_total = 0
 
+    def __str__(self):
+        return f"Stage: episode {self.i_episode}, steps {self.n_steps_episode}, steps total {self.n_steps_total}"
+
+    def __repr__(self):
+        return self.__str__()
+
 
 class Scheduler(ABC):
     """

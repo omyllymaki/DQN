@@ -7,6 +7,7 @@ import torch.optim as optim
 from src.dqn.counter import SimpleHashedStateCounter
 from src.dqn.model import FNN
 from src.dqn.progress_callback import ProgressCallbackSimple
+from src.dqn.sample_priority import SigmoidSamplePriority
 from src.dqn.sampling_strategy import SamplingStrategy, RandomSamplingStrategy
 from src.dqn.scheduler import ExpDecayScheduler, ConstValueScheduler
 
@@ -46,6 +47,7 @@ class TrainParameters:
     discount_scheduler: Scheduler to update discount factors during training. Discount factor determines the importance of future rewards relative to immediate rewards.
     eps_scheduler: Scheduler to update eps values during training. eps is probability to select "exploration" instead of best action.
     random_action_scheduler: Scheduler to update random action probablity. This determines choice between random action and getting most uncertain action in "exploration".
+    sample_priory_update: Rule to update sample priority based on temporal diff error. This is used only if sampling_strategy is PrioritizedSamplingStrategy.
     count_based_exploration: Exploration bonus reward based on hashed state count. Will not be used if None.
     target_network_update_rate: Coefficient to update target network using exponential moving average.
     gradient_clipping: Gradient clipping applied in policy net updates.
@@ -62,6 +64,7 @@ class TrainParameters:
     discount_scheduler = ConstValueScheduler(0.9)
     eps_scheduler = ExpDecayScheduler(start=0.9, end=0.05, decay=10000)
     random_action_scheduler = ConstValueScheduler(1.0)
+    sample_priory_update = SigmoidSamplePriority(k=2, alpha=0.5)
     count_based_exploration = None
     target_network_update_rate = 0.005
     gradient_clipping = 100

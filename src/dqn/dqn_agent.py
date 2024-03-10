@@ -259,24 +259,17 @@ class DQNAgent:
         with torch.no_grad():
             action_values_for_next_states[is_not_none] = target_net(non_final_next_states).max(1).values
         expected_state_action_values = (action_values_for_next_states * self.discount_factor) + reward_batch
-
-        # Minimize temporal difference error by updating weights of the policy_net
-        # Temporal difference error = current_state_action_values - expected_state_action_values
         temporal_diff_errors = current_state_action_values - expected_state_action_values.unsqueeze(1)
 
-        for index, td in zip(sample_indices, temporal_diff_errors):
-            k = 2
-            priority = 2*(1 / (1 + np.exp(-1*(abs(td.item())/k))) - 0.5)
-            self.memory.memory[index].priority = priority
+        # Update sample priorities in the memory
+        # This relevant only is priority based sampling strategy is used
+        if self.train_param.sample_priory_update is not None:
+            for index, tde in zip(sample_indices, temporal_diff_errors):
+                current_priority = self.memory.memory[index].priority
+                self.memory.memory[index].priority = self.train_param.sample_priory_update.apply(current_priority,
+                                                                                                 tde.item())
 
-
-        # y = temporal_diff_errors.detach().cpu().numpy()
-        # if np.max(y) > 1:
-        #     plt.figure(3)
-        #     plt.cla()
-        #     plt.plot(y)
-        #     plt.pause(0.1)
-
+        # Minimize temporal difference error by updating weights of the policy_net
         criterion = self.train_param.loss()
         loss = criterion(current_state_action_values, expected_state_action_values.unsqueeze(1))
 
@@ -287,6 +280,15 @@ class DQNAgent:
             torch.nn.utils.clip_grad_value_(policy_net.parameters(),
                                             self.train_param.gradient_clipping)  # In-place gradient clipping
         optimizer.step()
+
+        if self.stage.n_steps_total % 500 == 0:
+            tde_min = temporal_diff_errors.min().item()
+            tde_max = temporal_diff_errors.max().item()
+
+            logger.info(f"Fit Information:\n"
+                        f"Stage {self.stage}\n"
+                        f"Temporal diff errors: min {tde_min}, max {tde_max}\n"
+                        f"Loss: {loss.item()}")
 
         return loss.item()
 
