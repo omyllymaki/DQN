@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 
 from src.custom_environments.grid_world.grid_world_env import GridWorldEnv
 from src.dqn.count_based_exploration import CountBasedExploration
+from src.dqn.sample_priority import PolynomialSamplePriority
 from src.dqn.sampling_strategy import PrioritizedSamplingStrategy
 from src.dqn.state_hashing import StateHashing
 from src.dqn.memory import Memory
@@ -41,10 +42,14 @@ OBSTACLES = (
 
 
 def main():
+    max_reward = 10
     env = GridWorldEnv(size=GRID_SIZE,
                        n_obstacles=15,
                        fixed_target_point=TARGET,
-                       fixed_obstacles=OBSTACLES)
+                       fixed_obstacles=OBSTACLES,
+                       target_reward=max_reward,
+                       obstacle_reward=-max_reward,
+                       default_reward=-0.05)
 
     n_actions = env.action_space.n
     state, _ = env.reset()
@@ -69,6 +74,7 @@ def main():
     train_param.count_based_exploration = None
 
     train_param.sampling_strategy = PrioritizedSamplingStrategy(128)
+    train_param.sample_priory_update = PolynomialSamplePriority(max_tde_error=max_reward, beta=2, alpha=0.5)
 
     agent = DQNAgent(param)
 
