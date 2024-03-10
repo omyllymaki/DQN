@@ -15,7 +15,8 @@ class Memory(object):
         transition = Transition(state=state,
                                 action=action,
                                 next_state=next_state,
-                                reward=reward)
+                                reward=reward,
+                                priority=1)
         self.memory.append(transition)
 
     def get_all(self) -> List[Transition]:

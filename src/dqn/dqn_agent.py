@@ -5,7 +5,9 @@ from statistics import mode
 from typing import Optional, List
 
 import gym
+import numpy as np
 import torch
+from matplotlib import pyplot as plt
 
 from src.dqn.memory import Memory
 from src.dqn.parameters import Parameters, TrainParameters
@@ -26,6 +28,7 @@ class DQNAgent:
           - Voting best action based on multiple models
           - Finding most uncertain actions in exploration phase using multiple models
         - Option for adding reward bonus based on (hashed) state count as exploration strategy
+        - Option to use priority based sampling from replay memory; priority defined by temporal difference error
     """
 
     def __init__(self, parameters: Parameters) -> None:
@@ -67,16 +70,21 @@ class DQNAgent:
 
         Training process:
 
-        init data buffer
+        init replay memory
         for every episode:
             reset env
             get init state
             for as long as terminated:
-                update eps
-                select action based on learned policy or randomly, based on eps value
+                scheduled parameter updates
+                select action based on learned policies or randomly, based on eps value
                 perform action and receive feedback from env
-                append data buffer
+                push data to replay memory
                 update policy model
+                 - draw sample from replay memory based on selected strategy
+                 - add bonus reward based on state counts (optional)
+                 - calculate expected state action values using target model
+                 - update sample priorities in the replay memory based on temporal difference errors (optional)
+                 - minimize temporal difference errors by optimizing policy net weights
                 update target net based on policy net weights
 
         Args:
@@ -226,7 +234,7 @@ class DQNAgent:
                 return torch.tensor([[env.action_space.sample()]], device=self.param.device, dtype=torch.long)
 
     def _update_policy_model(self, policy_net, target_net, optimizer) -> Optional[float]:
-        batch = self.train_param.sampling_strategy.apply(self.memory)
+        batch, sample_indices = self.train_param.sampling_strategy.apply(self.memory)
         if batch is None:
             return
 
@@ -257,8 +265,17 @@ class DQNAgent:
         with torch.no_grad():
             action_values_for_next_states[is_not_none] = target_net(non_final_next_states).max(1).values
         expected_state_action_values = (action_values_for_next_states * self.discount_factor) + reward_batch
+        temporal_diff_errors = current_state_action_values - expected_state_action_values.unsqueeze(1)
 
-        # Minimize delta = current_state_action_values - expected_state_action_values by updating weights of the policy_net
+        # Update sample priorities in the memory
+        # This relevant only is priority based sampling strategy is used
+        if self.train_param.sample_priory_update is not None:
+            for index, tde in zip(sample_indices, temporal_diff_errors):
+                current_priority = self.memory.memory[index].priority
+                self.memory.memory[index].priority = self.train_param.sample_priory_update.apply(current_priority,
+                                                                                                 tde.item())
+
+        # Minimize temporal difference error by updating weights of the policy_net
         criterion = self.train_param.loss()
         loss = criterion(current_state_action_values, expected_state_action_values.unsqueeze(1))
 
@@ -269,6 +286,15 @@ class DQNAgent:
             torch.nn.utils.clip_grad_value_(policy_net.parameters(),
                                             self.train_param.gradient_clipping)  # In-place gradient clipping
         optimizer.step()
+
+        if self.stage.n_steps_total % 500 == 0:
+            tde_min = temporal_diff_errors.min().item()
+            tde_max = temporal_diff_errors.max().item()
+
+            logger.info(f"Fit Information:\n"
+                        f"Stage {self.stage}\n"
+                        f"Temporal diff errors: min {tde_min}, max {tde_max}\n"
+                        f"Loss: {loss.item()}")
 
         return loss.item()
 

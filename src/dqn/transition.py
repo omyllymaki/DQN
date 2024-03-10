@@ -1,4 +1,6 @@
 from collections import namedtuple
 
-Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
+from recordclass import recordclass
+
+Transition = recordclass('Transition',
+                         ('state', 'action', 'next_state', 'reward', 'priority'))

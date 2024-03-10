@@ -12,6 +12,7 @@ I'm planning to add some experimental features. Now there are few
   - Voting best action based on multiple models
   - Finding most uncertain actions in exploration phase using multiple models
 - Option for adding reward bonus based on (hashed) state count as exploration strategy
+- Option to use priority based sampling from replay memory; priority defined by temporal difference error
 
 # Examples
 
