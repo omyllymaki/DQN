@@ -7,6 +7,8 @@ import torch
 from src.custom_environments.grid_world.grid_world_env import GridWorldEnv
 from src.dqn.count_based_exploration import CountBasedExploration
 from src.dqn.dqn_agent import DQNAgent
+from src.dqn.sample_priority import SigmoidSamplePriority, PolynomialSamplePriority
+from src.dqn.sampling_strategy import PrioritizedSamplingStrategy
 from src.dqn.state_hashing import StateHashing
 from src.dqn.parameters import Parameters, TrainParameters
 from src.dqn.progress_callback import ProgressCallbackVisSumReward
@@ -94,6 +96,28 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
 
         self.assertGreater(avg_cum_reward_last_episodes, 3)
         self.assertGreater(n_steps_per_second, 100)
+
+    def test_priority_sampling(self):
+        param, train_param = self._init_param()
+        train_param.sampling_strategy = PrioritizedSamplingStrategy(128)
+        train_param.sample_priory_update = PolynomialSamplePriority(max_tde_error=10, beta=1, alpha=0.5)
+
+        agent = DQNAgent(param)
+
+        t1 = time.time()
+        results = agent.train(self.env, train_param)
+        t2 = time.time()
+        duration = t2 - t1
+        n_step_total = agent.stage.n_steps_total
+        n_steps_per_second = n_step_total / duration
+        print(f"Training took {duration} s for {n_step_total} steps, {n_steps_per_second:0.0f} steps/s")
+
+        last_episodes = results[-50:]
+        avg_cum_reward_last_episodes = np.mean([np.sum(item) for item in last_episodes])
+        print(f"Average cumulative rewards in last episodes: {avg_cum_reward_last_episodes}")
+
+        self.assertGreater(avg_cum_reward_last_episodes, 3)
+        self.assertGreater(n_steps_per_second, 50)
 
     def _init_param(self):
         n_actions = self.env.action_space.n
