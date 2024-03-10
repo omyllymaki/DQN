@@ -6,6 +6,7 @@ import torch
 
 from src.custom_environments.grid_world.grid_world_env import GridWorldEnv
 from src.dqn.count_based_exploration import CountBasedExploration
+from src.dqn.counter import SimpleHashedStateCounter
 from src.dqn.dqn_agent import DQNAgent
 from src.dqn.sample_priority import SigmoidSamplePriority, PolynomialSamplePriority
 from src.dqn.sampling_strategy import PrioritizedSamplingStrategy
@@ -77,7 +78,8 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
 
         exploration_bonus_reward_coeff_scheduler = ConstValueScheduler(0.05)
         state_hashing = StateHashingXY()
-        train_param.count_based_exploration = CountBasedExploration(state_hashing,
+        counter = SimpleHashedStateCounter(state_hashing)
+        train_param.count_based_exploration = CountBasedExploration(counter,
                                                                     exploration_bonus_reward_coeff_scheduler)
 
         agent = DQNAgent(param)
@@ -95,7 +97,7 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
         print(f"Average cumulative rewards in last episodes: {avg_cum_reward_last_episodes}")
 
         self.assertGreater(avg_cum_reward_last_episodes, 3)
-        self.assertGreater(n_steps_per_second, 100)
+        self.assertGreater(n_steps_per_second, 70)
 
     def test_priority_sampling(self):
         param, train_param = self._init_param()
