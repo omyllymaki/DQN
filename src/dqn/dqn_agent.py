@@ -28,6 +28,7 @@ class DQNAgent:
           - Voting best action based on multiple models
           - Finding most uncertain actions in exploration phase using multiple models
         - Option for adding reward bonus based on (hashed) state count as exploration strategy
+        - Option to use priority based sampling from replay memory; priority defined by temporal difference error
     """
 
     def __init__(self, parameters: Parameters) -> None:
@@ -69,16 +70,21 @@ class DQNAgent:
 
         Training process:
 
-        init data buffer
+        init replay memory
         for every episode:
             reset env
             get init state
             for as long as terminated:
-                update eps
-                select action based on learned policy or randomly, based on eps value
+                scheduled parameter updates
+                select action based on learned policies or randomly, based on eps value
                 perform action and receive feedback from env
-                append data buffer
+                push data to replay memory
                 update policy model
+                 - draw sample from replay memory based on selected strategy
+                 - add bonus reward based on state counts (optional)
+                 - calculate expected state action values using target model
+                 - update sample priorities in the replay memory based on temporal difference errors (optional)
+                 - minimize temporal difference errors by optimizing policy net weights
                 update target net based on policy net weights
 
         Args:

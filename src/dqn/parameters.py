@@ -20,7 +20,7 @@ class Parameters:
     Attributes:
     obs_dim: Observation vector size.
     action_dim: Action vector size.
-    n_nets: Number of models.
+    n_nets: Number of models. Use value > 1 for ensemble learning.
     net: Model to learn Q function.
     device: Device used.
     """
@@ -34,7 +34,20 @@ class Parameters:
 @dataclass
 class TrainParameters:
     """
-    Collection of parameters for training the agent.
+    Collection of parameters for training the agent. The default parameters correspond standard DQN.
+
+    Some optional features:
+
+    1) Count based exploration
+    Calculate state counts and use that to calculate bonus reward in order to make exploration more efficient.
+    Related parameters: count_based_exploration
+
+    2) Priority sampling
+    Prioritize sampling from replay memory. This is used when sampling_strategy is PrioritizedSamplingStrategy. The
+    priorities for samples are calculated using sample_priory_update based on temporal difference errors.
+    Related parameters: sample_priory_update, sampling_strategy
+
+    ---
 
     Attributes:
     optimizer: Any pytorch optimizer.
