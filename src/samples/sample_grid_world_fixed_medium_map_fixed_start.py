@@ -11,7 +11,7 @@ from src.dqn.dqn_agent import DQNAgent
 from src.dqn.pca import PCA
 from src.dqn.state_hashing import RandomProjectionStateHashing, PCAStateHashing
 from src.dqn.parameters import Parameters, TrainParameters
-from src.dqn.sampling_strategy import RandomSamplingStrategy
+from src.dqn.sampling_strategy import RandomSamplingStrategy, PrioritizedSamplingStrategy
 from src.dqn.scheduler import ConstValueScheduler, LinearScheduler
 from src.samples.sample_utils import ProgressCallbackGridWorld
 
@@ -55,7 +55,7 @@ def main():
     train_param = TrainParameters()
     train_param.sampling_strategy = RandomSamplingStrategy(batch_size=128)
     train_param.discount_scheduler = ConstValueScheduler(0.9)
-    train_param.n_episodes = 1000
+    train_param.n_episodes = 5000
     train_param.max_steps_per_episode = 300
     train_param.target_network_update_rate = 0.005
     train_param.progress_cb = ProgressCallbackGridWorld(grid_size=GRID_SIZE,
@@ -66,14 +66,18 @@ def main():
     train_param.state_hashing = StateHashing()
 
     train_param.sampling_strategy = RandomSamplingStrategy(batch_size=128)
-    train_param.eps_scheduler = LinearScheduler(slope=-0.8 / 700, start_value=0.8, min_value=0.05)
-    bonus_reward_coefficient_scheduler = ConstValueScheduler(1)
+    train_param.eps_scheduler = LinearScheduler(slope=-0.8 / 3000, start_value=0.8, min_value=0.05)
+    bonus_reward_coefficient_scheduler = LinearScheduler(slope=-1.0 / 1500, start_value=1.0, min_value=0.05)
     hashing = PCAStateHashing(n_components=2, factor=1)
     counter = ModelHashedStateCounter(hashing)
     train_param.count_based_exploration = CountBasedExploration(counter,
                                                                 bonus_reward_coefficient_scheduler)
 
     # train_param.count_based_exploration = None
+
+    train_param.sampling_strategy = PrioritizedSamplingStrategy(64)
+    train_param.target_network_update_rate = 0.05
+    train_param.buffer_size = 50000
 
     agent = DQNAgent(param)
 

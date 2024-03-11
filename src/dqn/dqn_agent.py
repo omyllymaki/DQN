@@ -2,7 +2,7 @@ import logging
 import random
 import time
 from statistics import mode
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 import gym
 import numpy as np
@@ -11,6 +11,7 @@ from matplotlib import pyplot as plt
 
 from src.dqn.memory import Memory
 from src.dqn.parameters import Parameters, TrainParameters
+from src.dqn.progress_data import ProgressData
 from src.dqn.scheduler import Stage
 
 logger = logging.getLogger(__name__)
@@ -108,7 +109,7 @@ class DQNAgent:
         for i_episode in range(train_param.n_episodes):
             state, _ = env.reset()
             state = torch.tensor(state, dtype=torch.float32, device=self.param.device).unsqueeze(0)
-            episode_data = Memory(self.train_param.max_steps_per_episode)
+            episode_data = ProgressData()
             episode_rewards = []
             for step_counter in range(self.train_param.max_steps_per_episode):
                 self.stage.i_episode = i_episode
@@ -122,22 +123,31 @@ class DQNAgent:
                 observation, reward, terminated, truncated, _ = step_result
                 episode_rewards.append(reward)
                 reward = torch.tensor([reward], device=self.param.device)
+                next_state = torch.tensor(observation, dtype=torch.float32, device=self.param.device).unsqueeze(0)
+                episode_data.push_transition(state.cpu(),
+                                             action.cpu(),
+                                             next_state.cpu(),
+                                             reward.cpu())
 
                 done = terminated or truncated
                 if terminated:
                     next_state = None
-                else:
-                    next_state = torch.tensor(observation, dtype=torch.float32, device=self.param.device).unsqueeze(0)
 
-                episode_data.push(state, action, next_state, reward)
                 self.memory.push(state, action, next_state, reward)
                 if self.train_param.count_based_exploration is not None:
                     self.train_param.count_based_exploration.push(state)
                 state = next_state
-                for policy_net, target_net, optimizer in zip(self.policy_nets, self.target_nets, self.optimizers):
-                    loss = self._update_policy_model(policy_net, target_net, optimizer)
-                    logger.debug(f"Episode {i_episode}, step count {step_counter}, loss {loss}")
-                    self._update_target_net(policy_net, target_net)
+
+                loss_list, temporal_diff_errors_list = [], []
+                if len(self.memory) >= self.train_param.sampling_strategy.batch_size:
+                    for policy_net, target_net, optimizer in zip(self.policy_nets, self.target_nets, self.optimizers):
+                        loss, temporal_diff_errors = self._update_policy_model(policy_net, target_net, optimizer)
+                        loss_list.append(loss.item())
+                        temporal_diff_errors_list.append(temporal_diff_errors.cpu())
+                        logger.debug(f"Episode {i_episode}, step count {step_counter}, loss {loss}")
+                        self._update_target_net(policy_net, target_net)
+                episode_data.push_losses(loss_list)
+                episode_data.push_temporal_difference_errors(temporal_diff_errors_list)
 
                 if done:
                     if terminated:
@@ -233,10 +243,8 @@ class DQNAgent:
             else:
                 return torch.tensor([[env.action_space.sample()]], device=self.param.device, dtype=torch.long)
 
-    def _update_policy_model(self, policy_net, target_net, optimizer) -> Optional[float]:
+    def _update_policy_model(self, policy_net, target_net, optimizer) -> Tuple[torch.Tensor, torch.Tensor]:
         batch, sample_indices = self.train_param.sampling_strategy.apply(self.memory)
-        if batch is None:
-            return
 
         # Compute a mask for not-non values (none means terminated episode)
         is_not_none = torch.tensor([i is not None for i in batch.next_state], device=self.param.device,
@@ -296,7 +304,7 @@ class DQNAgent:
                         f"Temporal diff errors: min {tde_min}, max {tde_max}\n"
                         f"Loss: {loss.item()}")
 
-        return loss.item()
+        return loss, temporal_diff_errors
 
     def _update_target_net(self, policy_net, target_net):
         # Target net weights are updated using exponential moving average

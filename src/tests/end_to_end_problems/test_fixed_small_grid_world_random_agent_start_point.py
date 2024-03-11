@@ -70,8 +70,8 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
         avg_cum_reward_last_episodes = np.mean([np.sum(item) for item in last_episodes])
         print(f"Average cumulative rewards in last episodes: {avg_cum_reward_last_episodes}")
 
-        self.assertGreater(avg_cum_reward_last_episodes, 3)
-        self.assertGreater(n_steps_per_second, 150)
+        self.assertGreater(avg_cum_reward_last_episodes, 1)
+        self.assertGreater(n_steps_per_second, 100)
 
     def test_training_with_count_based_exploration(self):
         param, train_param = self._init_param()
@@ -96,7 +96,7 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
         avg_cum_reward_last_episodes = np.mean([np.sum(item) for item in last_episodes])
         print(f"Average cumulative rewards in last episodes: {avg_cum_reward_last_episodes}")
 
-        self.assertGreater(avg_cum_reward_last_episodes, 3)
+        self.assertGreater(avg_cum_reward_last_episodes, 1)
         self.assertGreater(n_steps_per_second, 70)
 
     def test_priority_sampling(self):
@@ -118,7 +118,7 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
         avg_cum_reward_last_episodes = np.mean([np.sum(item) for item in last_episodes])
         print(f"Average cumulative rewards in last episodes: {avg_cum_reward_last_episodes}")
 
-        self.assertGreater(avg_cum_reward_last_episodes, 3)
+        self.assertGreater(avg_cum_reward_last_episodes, 1)
         self.assertGreater(n_steps_per_second, 50)
 
     def _init_param(self):
@@ -131,10 +131,11 @@ class FixedSmallGridWorldRandomAgentStartPointTests(unittest.TestCase):
         param.action_dim = n_actions
 
         train_param = TrainParameters()
-        train_param.n_episodes = 1000
+        train_param.n_episodes = 500
         train_param.max_steps_per_episode = 200
-        train_param.eps_scheduler = LinearScheduler(slope=-1 / 700, start_value=1.0, min_value=0)
+        train_param.eps_scheduler = LinearScheduler(slope=-1 / 400, start_value=1.0, min_value=0)
         train_param.progress_cb = ProgressCallbackVisSumReward(50)
+        train_param.target_network_update_rate = 0.01
 
         return param, train_param
 

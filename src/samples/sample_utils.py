@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from matplotlib import pyplot as plt
 
 from src.dqn.progress_callback import ProgressCallback
@@ -12,21 +13,23 @@ class ProgressCallbackGridWorld(ProgressCallback):
         self.grid_size = grid_size
         self.target = target
         self.obstacles = obstacles
-        self.data = []
+        self.transitions = []
+        self.losses = []
         self.vis_period = vis_period
         self.n_episodes_to_show = n_episodes_to_show
         self.heatmap = np.zeros((self.grid_size, self.grid_size))
 
     def push(self, data) -> None:
-        self.data.append(data.get_all())
-        states = [item.state for item in data]
+        self.transitions.append(data.transitions)
+        self.losses.append(data.losses)
+        states = [item.state for item in data.transitions]
         for state in states:
             x = int(state[0][0].item())
             y = int(state[0][1].item())
             self.heatmap[x, y] += 1
 
     def apply(self) -> None:
-        if len(self.data) % self.vis_period != 0:
+        if len(self.transitions) % self.vis_period != 0:
             return
 
         plt.figure(1)
@@ -37,7 +40,7 @@ class ProgressCallbackGridWorld(ProgressCallback):
         plt.subplot(2, 2, 4)
         plt.cla()
 
-        last_episodes = self.data[-self.n_episodes_to_show:]
+        last_episodes = self.transitions[-self.n_episodes_to_show:]
         n_found_target = 0
         n_hit_obstacle = 0
         n_terminated = 0
@@ -77,7 +80,7 @@ class ProgressCallbackGridWorld(ProgressCallback):
 
         reward_sums = []
         durations = []
-        for data in self.data:
+        for data in self.transitions:
             rewards = [i.reward.item() for i in data]
             reward_sums.append(np.sum(rewards))
             durations.append(len(data))
@@ -107,5 +110,29 @@ class ProgressCallbackGridWorld(ProgressCallback):
 
         for obs in self.obstacles:
             plt.plot(obs[0], obs[1], "bo")
+
+        plt.figure(3)
+        plt.cla()
+        avg_losses, min_losses, max_losses = [], [], []
+        for episode_losses in self.losses:
+            sum_loss = 0
+            min_loss = np.inf
+            max_loss = - np.inf
+            for l in episode_losses:
+                if len(l) > 0:
+                    v = l[0]
+                    sum_loss += v
+                    if v < min_loss:
+                        min_loss = v
+                    if v > max_loss:
+                        max_loss = v
+            avg_loss = sum_loss / len(episode_losses)
+            avg_losses.append(avg_loss)
+            max_losses.append(max_loss)
+
+        plt.plot(avg_losses)
+        plt.plot(max_losses)
+
+
 
         plt.pause(0.1)
