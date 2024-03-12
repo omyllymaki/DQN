@@ -21,3 +21,10 @@ class ProgressData:
 
     def push_temporal_difference_errors(self, temporal_diff_errors):
         self.temporal_diff_errors.append(temporal_diff_errors)
+
+    def __str__(self):
+        s = f"Progress data, size {len(self.transitions)}"
+        return s
+
+    def __repr__(self):
+        return self.__str__()

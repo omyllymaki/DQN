@@ -1,13 +1,10 @@
 import logging
 import random
-import time
 from statistics import mode
-from typing import Optional, List, Tuple
+from typing import List, Tuple
 
 import gym
-import numpy as np
 import torch
-from matplotlib import pyplot as plt
 
 from src.dqn.memory import Memory
 from src.dqn.parameters import Parameters, TrainParameters
@@ -278,10 +275,7 @@ class DQNAgent:
         # Update sample priorities in the memory
         # This relevant only is priority based sampling strategy is used
         if self.train_param.sample_priory_update is not None:
-            for index, tde in zip(sample_indices, temporal_diff_errors):
-                current_priority = self.memory.memory[index].priority
-                self.memory.memory[index].priority = self.train_param.sample_priory_update.apply(current_priority,
-                                                                                                 tde.item())
+            self._update_sample_priorities(sample_indices, temporal_diff_errors)
 
         # Minimize temporal difference error by updating weights of the policy_net
         criterion = self.train_param.loss()
@@ -305,6 +299,12 @@ class DQNAgent:
                         f"Loss: {loss.item()}")
 
         return loss, temporal_diff_errors
+
+    def _update_sample_priorities(self, sample_indices, temporal_diff_errors):
+        for index, tde in zip(sample_indices, temporal_diff_errors):
+            current_priority = self.memory.memory[index].priority
+            self.memory.memory[index].priority = self.train_param.sample_priory_update.apply(current_priority,
+                                                                                             tde.item())
 
     def _update_target_net(self, policy_net, target_net):
         # Target net weights are updated using exponential moving average
