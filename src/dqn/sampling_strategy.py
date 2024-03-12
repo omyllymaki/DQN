@@ -1,3 +1,4 @@
+import logging
 import random
 from abc import ABC, abstractmethod
 from typing import Optional, Callable, Tuple, List
@@ -68,7 +69,7 @@ class PrioritizedSamplingStrategy(SamplingStrategy):
 
     def apply(self, data_buffer: Memory) -> Tuple[Transition, List[int]]:
         indices = np.arange(len(data_buffer)).tolist()
-        weights = [data_buffer[i].priority for i in indices]
+        weights = data_buffer.get_all_flat().priority
         sample_indices = random.choices(population=indices, weights=weights, k=self.batch_size)
         sample = [data_buffer[i] for i in sample_indices]
         return Transition(*zip(*sample)), sample_indices
