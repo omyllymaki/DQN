@@ -10,6 +10,7 @@ from src.dqn.memory import Memory
 from src.dqn.parameters import Parameters, TrainParameters
 from src.dqn.progress_data import ProgressData
 from src.dqn.scheduler import Stage
+from src.dqn.utils import timer
 
 logger = logging.getLogger(__name__)
 
@@ -241,11 +242,18 @@ class DQNAgent:
                 return torch.tensor([[env.action_space.sample()]], device=self.param.device, dtype=torch.long)
 
     def _update_policy_model(self, policy_net, target_net, optimizer) -> Tuple[torch.Tensor, torch.Tensor]:
-        batch, sample_indices = self.train_param.sampling_strategy.apply(self.memory)
 
-        # Compute a mask for not-non values (none means terminated episode)
-        is_not_none = torch.tensor([i is not None for i in batch.next_state], device=self.param.device,
-                                   dtype=torch.bool)
+        # TODO: temporary solution, handle this better
+        # At the moment this method will crash if all the next states are None
+        while True:
+            batch, sample_indices = self.train_param.sampling_strategy.apply(self.memory)
+
+            # Compute a mask for not-non values (none means terminated episode)
+            is_not_none = torch.tensor([i is not None for i in batch.next_state], device=self.param.device,
+                                       dtype=torch.bool)
+
+            if is_not_none.sum() > 0:
+                break
 
         # Prepare tensors for the update
         non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
