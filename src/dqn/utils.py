@@ -31,7 +31,7 @@ def timer(f):
         calling_class_name = args[0].__class__.__name__ if args and hasattr(args[0], '__class__') else "unknown_class"
         f_name = f.__name__
 
-        logger.debug(f"func {f_name} (module {calling_module_name}, class {calling_class_name}) took {t_ms}:0.1f ms")
+        print(f"func {f_name} (module {calling_module_name}, class {calling_class_name}) took {t_ms:0.1f} ms")
         return result
 
     return wrap
