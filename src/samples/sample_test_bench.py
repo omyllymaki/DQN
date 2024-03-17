@@ -129,16 +129,19 @@ def create_parser():
     parser.add_argument("--max_steps_per_episode", type=int, default=200, help="Maximum steps per episode")
     parser.add_argument("--target_network_update_rate", type=float, default=0.1, help="Target network update rate")
     parser.add_argument("--eps_scheduler_start_value", type=float, default=0.7, help="Epsilon scheduler start value")
-    parser.add_argument("--bonus_reward_start_value", type=float, default=0.1, help="Bonus reward scheduler start value used in count based exploration")
     parser.add_argument("--batch_size", type=int, default=64, help="Batch size")
     parser.add_argument("--buffer_size", type=int, default=15000, help="Memory buffer size")
-    parser.add_argument("--sample_priority_max_tde_error", type=float, default=10, help="Sample priority calculation max TDE error")
-    parser.add_argument("--sample_priority_beta", type=float, default=1, help="Sample priority calculation power coefficient")
-    parser.add_argument("--sample_priority_alpha", type=float, default=0.5, help="Sample priority calculation EMA coefficient")
-    parser.add_argument("--ensemble_n_models", type=int, default=7, help="Number of models in ensemble learning")
-    parser.add_argument("--ensemble_random_action_prob", type=float, default=0.5, help="Probability for random action in ensemble learning")
     parser.add_argument("--n_runs", type=int, default=10, help="Number of runs per method")
     parser.add_argument("--exploration_duration", type=float, default=0.7, help="Relative duration of exploration phase")
+
+    parser.add_argument("--count_based_exploration-bonus_reward_start_value", type=float, default=0.1, help="Bonus reward scheduler start value used in count based exploration")
+
+    parser.add_argument("--sample_priority-max_tde_error", type=float, default=10, help="Sample priority calculation max TDE error")
+    parser.add_argument("--sample_priority-beta", type=float, default=1, help="Sample priority calculation power coefficient")
+    parser.add_argument("--sample_priority-alpha", type=float, default=0.5, help="Sample priority calculation EMA coefficient")
+
+    parser.add_argument("--ensemble-n_models", type=int, default=7, help="Number of models in ensemble learning")
+    parser.add_argument("--ensemble-random_action_prob", type=float, default=0.5, help="Probability for random action in ensemble learning")
     # @formatter:on
     return parser
 
@@ -194,9 +197,10 @@ def main():
         param = get_param(args, n_actions, n_observations)
         train_param = get_train_param(args)
         episodes_to_zero_value = int(args.exploration_duration * args.n_episodes)
-        slope = -args.bonus_reward_start_value / episodes_to_zero_value
+        start_value = args.count_based_exploration_bonus_reward_start_value
+        slope = -start_value / episodes_to_zero_value
         bonus_reward_coefficient_scheduler = LinearScheduler(slope=-slope,
-                                                             start_value=args.bonus_reward_start_value,
+                                                             start_value=start_value,
                                                              min_value=0)
         counter = SimpleHashedStateCounter(StateHashingXY())
         train_param.count_based_exploration = CountBasedExploration(counter,
