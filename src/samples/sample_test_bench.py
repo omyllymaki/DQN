@@ -24,6 +24,7 @@ from src.samples.sample_utils import ProgressCallbackGridWorld
 
 logging.basicConfig(level=logging.WARNING)
 
+METHOD_CHOICES = ["standard", "priority_sampling", "count_based_exploration", "ensemble"]
 GRID_SIZE = 30
 TARGET = (20, 20)
 OBSTACLES = (
@@ -45,14 +46,23 @@ OBSTACLES = (
 )
 
 
+def get_param(args, n_actions, n_observations):
+    param = Parameters()
+    param.obs_dim = n_observations
+    param.action_dim = n_actions
+    param.device = args.device
+    return param
+
+
 def get_train_param(args):
     train_param = TrainParameters()
     train_param.n_episodes = args.n_episodes
     train_param.max_steps_per_episode = args.max_steps_per_episode
     train_param.target_network_update_rate = args.target_network_update_rate
 
-    n = int(args.exploration_duration * args.n_episodes)
-    train_param.eps_scheduler = LinearScheduler(slope=-args.eps_scheduler_start_value / n,
+    episodes_to_zero_value = int(args.exploration_duration * args.n_episodes)
+    slope = -args.eps_scheduler_start_value / episodes_to_zero_value
+    train_param.eps_scheduler = LinearScheduler(slope=slope,
                                                 start_value=args.eps_scheduler_start_value,
                                                 min_value=0)
     train_param.progress_cb = None
@@ -111,19 +121,25 @@ class StateHashingXY(StateHashing):
 
 
 def create_parser():
+    # @formatter:off
     parser = argparse.ArgumentParser(description="Arguments for training parameters")
     parser.add_argument("--device", type=str, default="cpu", help="Device used for model")
+    parser.add_argument("--method", type=str, default="standard", choices=METHOD_CHOICES, help="Method used")
     parser.add_argument("--n_episodes", type=int, default=1000, help="Number of episodes")
     parser.add_argument("--max_steps_per_episode", type=int, default=200, help="Maximum steps per episode")
     parser.add_argument("--target_network_update_rate", type=float, default=0.1, help="Target network update rate")
     parser.add_argument("--eps_scheduler_start_value", type=float, default=0.7, help="Epsilon scheduler start value")
-    parser.add_argument("--bonus_reward_start_value", type=float, default=0.1, help="Bonus reward scheduler start value")
+    parser.add_argument("--bonus_reward_start_value", type=float, default=0.1, help="Bonus reward scheduler start value used in count based exploration")
     parser.add_argument("--batch_size", type=int, default=64, help="Batch size")
     parser.add_argument("--buffer_size", type=int, default=15000, help="Memory buffer size")
+    parser.add_argument("--sample_priority_max_tde_error", type=float, default=10, help="Sample priority calculation max TDE error")
+    parser.add_argument("--sample_priority_beta", type=float, default=1, help="Sample priority calculation power coefficient")
+    parser.add_argument("--sample_priority_alpha", type=float, default=0.5, help="Sample priority calculation EMA coefficient")
     parser.add_argument("--ensemble_n_models", type=int, default=7, help="Number of models in ensemble learning")
     parser.add_argument("--ensemble_random_action_prob", type=float, default=0.5, help="Probability for random action in ensemble learning")
     parser.add_argument("--n_runs", type=int, default=10, help="Number of runs per method")
     parser.add_argument("--exploration_duration", type=float, default=0.7, help="Relative duration of exploration phase")
+    # @formatter:on
     return parser
 
 
@@ -148,7 +164,7 @@ def main():
     args = parser.parse_args()
     pid = os.getpid()
     print(f"PID: {pid}")
-    print(args)
+    print(f"Arguments: {args}")
 
     max_reward = 10
     env = GridWorldEnv(size=GRID_SIZE,
@@ -163,58 +179,39 @@ def main():
     n_actions = env.action_space.n
     state, _ = env.reset()
     n_observations = len(state)
-    param = Parameters()
-    param.obs_dim = n_observations
-    param.action_dim = n_actions
-    param.device = args.device
-    print(f"Using {param.device} as device")
 
-    # 1. Standard
-    train_param = get_train_param(args)
-    name = f"Standard {pid}"
-    y1, smoothed_rewards, rewards = run_test(param, train_param, env, name, args.n_runs)
-    save_results(args, y1, smoothed_rewards, rewards, name)
+    if args.method == "standard":
+        param = get_param(args, n_actions, n_observations)
+        train_param = get_train_param(args)
+    elif args.method == "priority_sampling":
+        param = get_param(args, n_actions, n_observations)
+        train_param = get_train_param(args)
+        train_param.sampling_strategy = PrioritizedSamplingStrategy(batch_size=args.batch_size)
+        train_param.sample_priory_update = PolynomialSamplePriority(args.sample_priority_max_tde_error,
+                                                                    args.sample_priority_beta,
+                                                                    args.sample_priority_alpha)
+    elif args.method == "count_based_exploration":
+        param = get_param(args, n_actions, n_observations)
+        train_param = get_train_param(args)
+        episodes_to_zero_value = int(args.exploration_duration * args.n_episodes)
+        slope = -args.bonus_reward_start_value / episodes_to_zero_value
+        bonus_reward_coefficient_scheduler = LinearScheduler(slope=-slope,
+                                                             start_value=args.bonus_reward_start_value,
+                                                             min_value=0)
+        counter = SimpleHashedStateCounter(StateHashingXY())
+        train_param.count_based_exploration = CountBasedExploration(counter,
+                                                                    bonus_reward_coefficient_scheduler)
+    elif args.method == "ensemble":
+        param = get_param(args, n_actions, n_observations)
+        train_param = get_train_param(args)
+        param.n_nets = args.ensemble_n_models
+        train_param.random_action_scheduler = ConstValueScheduler(args.ensemble_random_action_prob)
+    else:
+        raise ValueError(f"Invalid argument: '{args.method}'. Allowed choices are {METHOD_CHOICES}")
 
-    # 2. Prioritized sampling
-    train_param = get_train_param(args)
-    train_param.sampling_strategy = PrioritizedSamplingStrategy(batch_size=args.batch_size)
-    train_param.sample_priory_update = PolynomialSamplePriority(10, 1, 0.5)
-    name = f"Priority sampling {pid}"
-    y2, smoothed_rewards, rewards = run_test(param, train_param, env, name, args.n_runs)
-    save_results(args, y2, smoothed_rewards, rewards, name)
-
-    # 3. Count based exploration
-    train_param = get_train_param(args)
-    n = int(args.exploration_duration * args.n_episodes)
-    bonus_reward_coefficient_scheduler = LinearScheduler(slope=-args.bonus_reward_start_value / n,
-                                                         start_value=args.bonus_reward_start_value,
-                                                         min_value=0)
-    counter = SimpleHashedStateCounter(StateHashingXY())
-    train_param.count_based_exploration = CountBasedExploration(counter,
-                                                                bonus_reward_coefficient_scheduler)
-    name = f"Count based exploration {pid}"
-    y3, smoothed_rewards, rewards = run_test(param, train_param, env, name, args.n_runs)
-    save_results(args, y3, smoothed_rewards, rewards, name)
-
-    # 4. Ensemble
-    param.n_nets = args.ensemble_n_models
-    train_param = get_train_param(args)
-    train_param.random_action_scheduler = ConstValueScheduler(args.ensemble_random_action_prob)
-    name = f"Ensemble {pid}"
-    y4, smoothed_rewards, rewards = run_test(param, train_param, env, name, args.n_runs)
-    save_results(args, y4, smoothed_rewards, rewards, name)
-
-    plt.figure()
-    plt.plot(y1, "-", linewidth=2, label="Standard")
-    plt.plot(y2, "-", linewidth=2, label="Prioritized sampling")
-    plt.plot(y3, "-", linewidth=2, label="Count based exploration")
-    plt.plot(y4, "-", linewidth=2, label="Ensemble")
-    plt.xlabel("Episode")
-    plt.ylabel("Smoothed cumulative reward")
-    plt.title("Method comparison")
-
-    plt.legend()
-    plt.savefig(f"Method comparison {pid}.jpg", dpi=600)
+    name = f"{args.method} {pid}"
+    smoothed_rewards_avg, smoothed_rewards, rewards = run_test(param, train_param, env, name, args.n_runs)
+    save_results(args, smoothed_rewards_avg, smoothed_rewards, rewards, name)
     plt.show()
 
 
