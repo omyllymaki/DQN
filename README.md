@@ -16,14 +16,53 @@ I'm planning to add some experimental features. Now there are few
 
 # Examples
 
-Find a target in the map with obstacles (src/samples/sample_grid_world_dqn).
+**Game**
+* Grid world, 30 x 30
+* One target and 15 obstacles
+* Rewards:
+  * target: +10
+  * obstacle: -10
+  * otherwise: -0.01
+* Robot starts from (0,0) and has 200 steps time to find target at (20, 20)
 
-First episodes with standard epsilon-greedy action selection strategy: 
+**Testing**
+* Test done with for different methods:
+  * Standard
+  * Priority sampling, based on temporal difference errors
+  * Count based exploration
+  * Ensemble
+* For each method, the run is repeated 20 times
+* Each run is 1000 episodes
+* Smoothed (running mean, 50 episodes) reward is calculated for each run
+
+See details: src/samples/sample_method_comparison.py
+
+**Results**
+
+Example run (method: priority sampling):
 <p align="center">
-<img src="images/grid_world_1_model_random_action.jpg" width="800px" />
+<img src="images/method_comparison_20240317/priority_sampling_example_run.jpg" width="800px" />
 </p>
 
-First episodes with ensemble "find most uncertain sample" strategy: 
+20 runs with standard DQN: 
 <p align="center">
-<img src="images/grid_world_10_models_most_uncertain_action.jpg" width="800px" />
+<img src="images/method_comparison_20240317/standard.jpg" width="800px" />
 </p>
+
+20 runs with priority sampling: 
+<p align="center">
+<img src="images/method_comparison_20240317/priority_sampling.jpg" width="800px" />
+</p>
+
+20 runs with count based exploration: 
+<p align="center">
+<img src="images/method_comparison_20240317/count_based_exploration.jpg" width="800px" />
+</p>
+
+20 runs with ensemble: 
+<p align="center">
+<img src="images/method_comparison_20240317/ensemble.jpg" width="800px" />
+</p>
+
+Comparison of methods, average of 20 runs from each:
+<img src="images/method_comparison_20240317/method_comparison.jpg" width="800px" />
