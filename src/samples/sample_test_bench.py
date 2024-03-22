@@ -75,11 +75,12 @@ def calculate_smoothed_cumulative_reward(rewards, window_size=50):
     return running_mean([np.sum(r) for r in rewards], window_size)
 
 
-def run_test(param, train_param, env, name, n_runs):
+def run_test(param, train_param, env, name, args):
     print(f"Start training: {name}")
     ys, all_rewards = [], []
-    for k in range(n_runs):
-        print(f"Run number {k + 1}/{n_runs}")
+    fig, ax = plt.subplots()
+    for k in range(args.n_runs):
+        print(f"Run number {k + 1}/{args.n_runs}")
         agent = DQNAgent(deepcopy(param))
         t1 = time.time()
         rewards = agent.train(deepcopy(env), deepcopy(train_param))
@@ -98,19 +99,21 @@ def run_test(param, train_param, env, name, n_runs):
         ys.append(y)
         all_rewards.append(rewards)
 
-    plt.figure()
-    for y in ys:
-        plt.plot(y, "b-", linewidth=1)
-    y_all = np.vstack(ys).T
-    y_avg = np.nanmean(np.array(y_all, dtype=np.float64), axis=1)
-    plt.plot(y_avg, "r-", linewidth=2)
-    plt.xlabel("Episode")
-    plt.ylabel("Smoothed cumulative reward")
-    plt.title(f"{name}")
-    plt.savefig(f"{name}.jpg", dpi=600)
+        y_all = np.vstack(ys).T
+        y_avg = np.nanmean(np.array(y_all, dtype=np.float64), axis=1)
+        y_avg = np.where(np.isnan(y_avg), None, y_avg).tolist()
 
-    y_avg = np.where(np.isnan(y_avg), None, y_avg).tolist()
-    return y_avg, ys, all_rewards
+        ax.cla()
+        for y in ys:
+            ax.plot(y, "b-", linewidth=1)
+        ax.plot(y_avg, "r-", linewidth=2)
+        ax.set_xlabel("Episode")
+        ax.set_ylabel("Smoothed cumulative reward")
+        ax.set_title(f"{name}")
+        plt.pause(0.5)
+
+        fig.savefig(f"{name}.jpg", dpi=600)
+        save_results(args, y_avg, ys, rewards, name)
 
 
 class StateHashingXY(StateHashing):
@@ -214,8 +217,7 @@ def main():
         raise ValueError(f"Invalid argument: '{args.method}'. Allowed choices are {METHOD_CHOICES}")
 
     name = f"{args.method} {pid}"
-    smoothed_rewards_avg, smoothed_rewards, rewards = run_test(param, train_param, env, name, args.n_runs)
-    save_results(args, smoothed_rewards_avg, smoothed_rewards, rewards, name)
+    run_test(param, train_param, env, name, args)
     plt.show()
 
 
