@@ -38,6 +38,7 @@ class DQNAgent:
         self.optimizers = []
         self.memory = None
         self.eps = None
+        self.learning_rate = None
         self.p_random_action = None
         self.discount_factor = None
         self.dropout = None
@@ -59,6 +60,7 @@ class DQNAgent:
         self.optimizers = None
         self.memory = None
         self.eps = None
+        self.learning_rate = None
         self.discount_factor = None
         self.bonus_reward_coeff = None
         self.stage = None
@@ -97,7 +99,6 @@ class DQNAgent:
         self.optimizers = []
         for policy_net in self.policy_nets:
             optimizer = train_param.optimizer(policy_net.parameters(),
-                                              lr=self.train_param.learning_rate,
                                               amsgrad=True)
             self.optimizers.append(optimizer)
         self.memory = Memory(train_param.buffer_size)
@@ -206,6 +207,11 @@ class DQNAgent:
         self.eps = self.train_param.eps_scheduler.apply(self.stage)
         self.discount_factor = self.train_param.discount_scheduler.apply(self.stage)
         self.p_random_action = self.train_param.random_action_scheduler.apply(self.stage)
+        self.learning_rate = self.train_param.learning_rate_scheduler.apply(self.stage)
+
+        for optimizer in self.optimizers:
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = self.learning_rate
 
     def _get_best_action(self, state: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():

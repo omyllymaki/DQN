@@ -65,6 +65,7 @@ def get_train_param(args):
     train_param.eps_scheduler = LinearScheduler(slope=slope,
                                                 start_value=args.eps_scheduler_start_value,
                                                 min_value=0)
+    train_param.learning_rate_scheduler = ConstValueScheduler(args.learning_rate)
     train_param.progress_cb = None
     train_param.sampling_strategy = RandomSamplingStrategy(batch_size=args.batch_size)
     train_param.buffer_size = args.buffer_size
@@ -132,6 +133,7 @@ def create_parser():
     parser.add_argument("--max_steps_per_episode", type=int, default=200, help="Maximum steps per episode")
     parser.add_argument("--target_network_update_rate", type=float, default=0.1, help="Target network update rate")
     parser.add_argument("--eps_scheduler_start_value", type=float, default=0.7, help="Epsilon scheduler start value")
+    parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate for policy net updates")
     parser.add_argument("--batch_size", type=int, default=64, help="Batch size")
     parser.add_argument("--buffer_size", type=int, default=15000, help="Memory buffer size")
     parser.add_argument("--n_runs", type=int, default=10, help="Number of runs per method")

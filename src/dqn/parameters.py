@@ -55,7 +55,7 @@ class TrainParameters:
     n_episodes: Number od episodes to run.
     max_steps_per_episode: Maximum number of steps the agent can take during one episode.
     buffer_size: Size of the memory used to sample data for updates.
-    learning_rate: Optimizer learning rate.
+    learning_rate_scheduler: Optimizer learning rate scheduler.
     sampling_strategy: Strategy to draw samples from replay memory.
     discount_scheduler: Scheduler to update discount factors during training. Discount factor determines the importance of future rewards relative to immediate rewards.
     eps_scheduler: Scheduler to update eps values during training. eps is probability to select "exploration" instead of best action.
@@ -72,7 +72,7 @@ class TrainParameters:
     max_steps_per_episode = 1000
     n_episodes = 500
     buffer_size = 10000
-    learning_rate = 1e-4
+    learning_rate_scheduler = ConstValueScheduler(1e-4)
     sampling_strategy = RandomSamplingStrategy(batch_size=128)
     discount_scheduler = ConstValueScheduler(0.9)
     eps_scheduler = ExpDecayScheduler(start=0.9, end=0.05, decay=10000)

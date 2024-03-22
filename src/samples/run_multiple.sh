@@ -43,10 +43,10 @@ for ((i=0; i<=7; i++)); do
 done
 
 command_prefix="python src/samples/sample_test_bench.py --device cuda --method priority_sampling --n_episodes 1000 --n_runs 20"
-update_rates=("0.005" "0.01" "0.1")
-for i in "${!update_rates[@]}"; do
+learning_rates=("0.0001" "0.001" "0.01")
+for i in "${!learning_rates[@]}"; do
     tmux select-pane -t "$i"
-    tmux send-keys -t dqn_session "$command_prefix --target_network_update_rate ${update_rates[$i]}" C-m
+    tmux send-keys -t dqn_session "$command_prefix --learning_rate ${learning_rates[$i]}" C-m
 done
 
 tmux rename-window 'runs'
