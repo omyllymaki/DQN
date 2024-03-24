@@ -16,6 +16,8 @@ I'm planning to add some experimental features. Now there are few
 
 # Examples
 
+## Grid world with obstacles
+
 **Game**
 * Grid world, 30 x 30
 * One target and 15 obstacles
@@ -66,3 +68,17 @@ Example run (method: priority sampling):
 
 Comparison of methods, average of 20 runs from each:
 <img src="images/method_comparison_20240317/method_comparison.jpg" width="800px" />
+
+# References
+
+**Prioritized Experience Replay**
+
+Tom Schaul, John Quan, Ioannis Antonoglou, David Silver
+
+http://arxiv.org/abs/1511.05952
+
+**#Exploration: A Study of Count-Based Exploration for Deep Reinforcement Learning**
+
+Haoran Tang, Rein Houthooft, Davis Foote, Adam Stooke, Xi Chen, Yan Duan, John Schulman, Filip De Turck, Pieter Abbeel
+
+https://arxiv.org/abs/1611.04717
